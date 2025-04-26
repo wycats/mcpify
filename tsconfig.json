@@ -4,6 +4,7 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "skipLibCheck": true,
+    "noEmit": true,
     "sourceMap": true,
     "declaration": true,
     "resolveJsonModule": true,
@@ -15,6 +16,7 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "allowArbitraryExtensions": true,
+    "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true
   },
   "include": [

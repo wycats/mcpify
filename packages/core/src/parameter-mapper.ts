@@ -1,266 +1,244 @@
-import type { OpenAPIV3 } from 'openapi-types';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import oasToHar from '@readme/oas-to-har';
+import { merge } from 'allof-merge';
+import type { LogLayer } from 'loglayer';
+import type Oas from 'oas';
+import type { DataForHAR } from 'oas/types';
+import type { z } from 'zod';
+import { jsonSchemaObjectToZodRawShape } from 'zod-from-json-schema';
+import type { JSONSchema } from 'zod-from-json-schema';
 
-/**
- * Maps OpenAPI schema types to JSON Schema types for MCP tools
- */
-export function mapSchemaType(schema: OpenAPIV3.SchemaObject): Record<string, unknown> {
-  // Start with a basic schema
-  const result: Record<string, unknown> = {};
+import type { App } from './main.ts';
+import type { HttpVerb } from './safety.ts';
 
-  // Map basic types
-  if (schema.type) {
-    result.type = schema.type;
-  }
+export type PathOperations = ReturnType<Oas['getPaths']>[string];
+export type PathOperation = PathOperations[keyof PathOperations];
 
-  // Handle format if specified
-  if (schema.format) {
-    result.format = schema.format;
-  }
-
-  // Handle enum values
-  if (schema.enum) {
-    result.enum = schema.enum;
-  }
-
-  // Handle minimum/maximum constraints for numbers
-  if (schema.type === 'integer' || schema.type === 'number') {
-    if (schema.minimum !== undefined) {
-      result.minimum = schema.minimum;
-    }
-    if (schema.maximum !== undefined) {
-      result.maximum = schema.maximum;
-    }
-    if (schema.exclusiveMinimum !== undefined) {
-      result.exclusiveMinimum = schema.exclusiveMinimum;
-    }
-    if (schema.exclusiveMaximum !== undefined) {
-      result.exclusiveMaximum = schema.exclusiveMaximum;
-    }
-    if (schema.multipleOf !== undefined) {
-      result.multipleOf = schema.multipleOf;
-    }
-  }
-
-  // Handle string constraints
-  if (schema.type === 'string') {
-    if (schema.minLength !== undefined) {
-      result.minLength = schema.minLength;
-    }
-    if (schema.maxLength !== undefined) {
-      result.maxLength = schema.maxLength;
-    }
-    if (schema.pattern !== undefined) {
-      result.pattern = schema.pattern;
-    }
-  }
-
-  // Handle array constraints
-  if (schema.type === 'array' && schema.items !== undefined) {
-    // For arrays, we need to map the items schema - by this point schema.items is guaranteed to exist
-    if ('$ref' in schema.items) {
-      // Handle reference, but this is simplified
-      result.items = { type: 'object' };
-    } else {
-      // We've confirmed schema.items exists and isn't a $ref, so it's a SchemaObject
-      result.items = mapSchemaType(schema.items);
-    }
-
-    if (schema.minItems !== undefined) {
-      result.minItems = schema.minItems;
-    }
-    if (schema.maxItems !== undefined) {
-      result.maxItems = schema.maxItems;
-    }
-    if (schema.uniqueItems !== undefined) {
-      result.uniqueItems = schema.uniqueItems;
-    }
-  }
-
-  // Handle object properties
-  if (schema.type === 'object' && schema.properties) {
-    const properties: Record<string, unknown> = {};
-    for (const [propName, propSchema] of Object.entries(schema.properties)) {
-      if ('$ref' in propSchema) {
-        // Handle references, simplified for now
-        properties[propName] = { type: 'object' };
-      } else {
-        properties[propName] = mapSchemaType(propSchema);
-      }
-    }
-    result.properties = properties;
-
-    // Add required properties if specified
-    const requiredProps = schema.required;
-    if (requiredProps && requiredProps.length > 0) {
-      result.required = requiredProps;
-    }
-  }
-
-  // Add description if available
-  if (schema.description) {
-    result.description = schema.description;
-  }
-
-  // Add default value if specified
-  if (schema.default !== undefined) {
-    result.default = schema.default;
-  }
-
-  return result;
+export interface OperationExtensions {
+  operationId?: string;
+  ignore?: true;
+  description?: string;
 }
 
-/**
- * Extracts and maps parameter schemas from an OpenAPI operation
- * Returns a format compatible with MCP SDK tool parameter registration
- */
-export function extractParameterSchemas(
-  operation: OpenAPIV3.OperationObject,
-  path: string,
-): Record<string, unknown> {
-  const parameterSchemas: Record<string, unknown> = {};
-  
-  // First collect all parameter names to ensure we create entries for all of them
-  const parameterNames = extractAllParameterNames(operation, path);
+export class ExtendedOperation {
+  #app: App;
+  #verb: HttpVerb;
+  #operation: PathOperation;
+  #extensions: OperationExtensions;
 
-  // Function to extract path params from a path template
-  const extractPathParams = (pathTemplate: string): string[] => {
-    const matches = pathTemplate.match(/\{([^}]+)\}/g) ?? [];
-    return matches.map((match) => match.slice(1, -1));
-  };
+  constructor(app: App, verb: HttpVerb, operation: PathOperation, extensions: OperationExtensions) {
+    this.#app = app;
+    this.#verb = verb;
+    this.#operation = operation;
+    this.#extensions = extensions;
+  }
 
-  // Process path parameters
-  const pathParams = extractPathParams(path);
-  for (const paramName of pathParams) {
-    // Default schema for path parameters if not specified elsewhere
-    parameterSchemas[paramName] = {
-      type: 'string',
-      description: `Path parameter: ${paramName}`,
+  get #log(): LogLayer {
+    return this.#app.log;
+  }
+
+  describe(): string {
+    return `${this.verb.uppercase} ${this.oas.path}  `;
+  }
+
+  get verb(): HttpVerb {
+    return this.#verb;
+  }
+
+  get oas(): PathOperation {
+    return this.#operation;
+  }
+
+  get extensions(): OperationExtensions {
+    return this.#extensions;
+  }
+
+  get jsonSchema(): JSONSchema | null {
+    const params = this.oas.getParametersAsJSONSchema({
+      mergeIntoBodyAndMetadata: true,
+    }) as ReturnType<PathOperation['getParametersAsJSONSchema']> | null;
+
+    // Return empty schema when there are no parameters
+    if (!params || params.length === 0) {
+      return null;
+    }
+
+    const { schema } = params[0];
+    return merge(schema) as JSONSchema;
+  }
+
+  get hasParameters(): boolean {
+    return this.oas.getParameters().length > 0;
+  }
+
+  get parameters(): z.ZodRawShape | null {
+    const schema = this.jsonSchema;
+
+    if (schema) {
+      return jsonSchemaObjectToZodRawShape(schema);
+    } else {
+      return null;
+    }
+  }
+
+  async invoke(
+    spec: Oas,
+    args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>,
+  ): Promise<CallToolResult> {
+    const harData = bucketArgs(this, args);
+
+    this.#log.debug('Calling operation with HAR Data', JSON.stringify(harData, null, 2));
+
+    // 1) Get the minimal HAR entry
+    const { request } = oasToHar(spec, this.oas, harData).log.entries[0];
+
+    this.#log.debug('Calling operation with HAR Data', JSON.stringify(request, null, 2));
+
+    // 2) Build fetch init
+    const headers = new Headers(request.headers.map((h) => [h.name, h.value] as [string, string]));
+
+    const init: RequestInit = {
+      method: request.method,
+      headers,
+      body: request.postData?.text,
     };
+
+    // 3) Fire it off
+    const response = await fetch(request.url, init);
+
+    return this.#toContent(this, response, request.url, this.#responseType);
   }
 
-  // Process operation parameters
-  if (operation.parameters) {
-    for (const param of operation.parameters) {
-      if ('$ref' in param) continue; // Skip references for simplicity
+  async #toContent(
+    operation: ExtendedOperation,
+    response: Response,
+    url: string,
+    type: OasResponseType,
+  ): Promise<CallToolResult> {
+    switch (type) {
+      case 'text/plain': {
+        const text = await response.text();
+        this.#log.info(`Response from ${operation.describe()}:`, text);
 
-      if (param.name) {
-        // Create a proper schema based on the parameter definition
-        const paramSchema: Record<string, unknown> = {};
+        return {
+          content: [
+            {
+              type: 'text',
+              text,
+            },
+          ],
+        };
+      }
 
-        // Set the description
-        if (param.description) {
-          paramSchema.description = param.description;
-        }
+      case 'application/json': {
+        const json = await response.json();
+        this.#log.info(`Response from ${operation.describe()}:`, JSON.stringify(json));
 
-        // Get the schema from the parameter
-        if (param.schema) {
-          if ('$ref' in param.schema) {
-            // For references, just use a basic object type for now
-            paramSchema.type = 'object';
-          } else {
-            // Map the schema properly
-            Object.assign(paramSchema, mapSchemaType(param.schema));
-          }
-        } else {
-          // Default to string type if no schema is provided
-          paramSchema.type = 'string';
-        }
+        return {
+          content: [
+            {
+              type: 'resource',
+              resource: {
+                uri: url,
+                mimeType: type,
+                text: JSON.stringify(json),
+              },
+            },
+          ],
+        };
+      }
 
-        // Mark required status
-        paramSchema.required = param.required === true;
+      case 'application/x-www-form-urlencoded': {
+        const formData = await response.formData();
+        this.#log.info(`Response from ${operation.describe()}:`, JSON.stringify(formData));
 
-        // Store the mapped schema
-        parameterSchemas[param.name] = paramSchema;
+        const content = Array.from(formData.entries()).map(
+          ([name, value]) =>
+            ({
+              type: 'resource',
+              resource: {
+                uri: url,
+                mimeType: type,
+                text: `${name}=${value}`,
+              },
+            }) satisfies CallToolResult['content'][number],
+        );
+
+        return { content };
       }
     }
   }
 
-  // Process request body parameters
-  const requestBodyObj = operation.requestBody as OpenAPIV3.RequestBodyObject | undefined;
-  const jsonContent = requestBodyObj?.content ? requestBodyObj.content['application/json'] : undefined;
-  const schema = jsonContent?.schema as OpenAPIV3.SchemaObject | undefined;
+  get #responseType(): OasResponseType {
+    const oas = this.oas;
 
-  if (schema) {
-    if (schema.type === 'object' && schema.properties) {
-      // Extract individual properties from the request body
-      for (const [propName, propSchema] of Object.entries(schema.properties)) {
-        if ('$ref' in propSchema) {
-          // For references, use a basic object type for now
-          parameterSchemas[propName] = {
-            type: 'object',
-            description: `Request body property: ${propName}`,
-          };
-        } else {
-          // Map the property schema
-          parameterSchemas[propName] = {
-            ...mapSchemaType(propSchema),
-            description: propSchema.description ?? `Request body property: ${propName}`,
-            required: schema.required?.includes(propName) ?? false,
-          };
-        }
-      }
+    if (oas.isJson()) {
+      return 'application/json';
+    } else if (oas.isFormUrlEncoded()) {
+      return 'application/x-www-form-urlencoded';
     } else {
-      // For non-object schemas, add a 'body' parameter
-      parameterSchemas['body'] = {
-        ...mapSchemaType(schema),
-        description: 'Request body',
-        required: requestBodyObj?.required ?? false,
-      };
+      return 'text/plain';
     }
   }
-
-  // Ensure all parameters are defined, even if just as basic required flags
-  for (const name of parameterNames) {
-    // If we haven't mapped a detailed schema, at least mark it as required
-    parameterSchemas[name] ??= { required: true };
-  }
-
-  return parameterSchemas;
 }
 
-/**
- * Extract all parameter names from an operation to ensure complete coverage
- */
-function extractAllParameterNames(operation: OpenAPIV3.OperationObject, path: string): string[] {
-  const parameterNames: string[] = [];
+export type OasResponseType =
+  | 'application/json'
+  | 'application/x-www-form-urlencoded'
+  | 'text/plain';
 
-  // Extract path params from a path template
-  const extractPathParams = (pathTemplate: string): string[] => {
-    const matches = pathTemplate.match(/\{([^}]+)\}/g) ?? [];
-    return matches.map((match) => match.slice(1, -1));
+export function bucketArgs(
+  operation: ExtendedOperation,
+  args: Record<string, unknown>,
+): DataForHAR {
+  const values: DataForHAR = {
+    path: {},
+    query: {},
+    header: {},
+    cookie: {},
+    formData: {},
   };
 
-  // Add path parameters
-  const pathParams = extractPathParams(path);
-  parameterNames.push(...pathParams);
+  /* 1 — copy any already-grouped keys straight in */
+  ['body', 'formData', 'auth', 'server'].forEach((k) => {
+    if (k in args) (values as any)[k] = args[k];
+  });
 
-  // Add parameters from operation
-  if (operation.parameters) {
-    for (const param of operation.parameters) {
-      if ('$ref' in param) continue;
+  /* 2 — bucket declared parameters */
+  const consumed = new Set<string>();
+  for (const p of operation.oas.getParameters()) {
+    const val = args[p.name];
+    consumed.add(p.name);
+    if (val === undefined) continue;
 
-      if (param.name) {
-        parameterNames.push(param.name);
-      }
+    (values[p.in] as Record<string, unknown>)[p.name] = val;
+  }
+
+  /* 3 — anything else must be part of the request body */
+  const leftovers: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(args)) {
+    if (consumed.has(k) || ['body', 'formData', 'auth', 'server'].includes(k)) continue;
+    leftovers[k] = v;
+  }
+
+  if (!operation.oas.hasRequestBody()) return values; // no body → done
+
+  const mime = operation.oas.getContentType(); // <-- helper
+  if (mime === 'application/x-www-form-urlencoded') {
+    values.formData = { ...(values.formData ?? {}), ...leftovers };
+  } else {
+    // JSON, XML, binary, multipart, custom, …
+    if (
+      mime === 'application/json' &&
+      typeof values.body === 'object' &&
+      !Array.isArray(values.body)
+    ) {
+      // merge into existing JSON object
+      values.body = { ...(values.body as Record<string, unknown>), ...leftovers };
+    } else if (Object.keys(values.body ?? {}).length === 0) {
+      values.body = Object.keys(leftovers).length ? leftovers : values.body;
     }
   }
 
-  // Add request body parameters if present
-  const requestBodyObj = operation.requestBody as OpenAPIV3.RequestBodyObject | undefined;
-  const jsonContent = requestBodyObj?.content ? requestBodyObj.content['application/json'] : undefined;
-  const schema = jsonContent?.schema as OpenAPIV3.SchemaObject | undefined;
-
-  if (schema) {
-    if (schema.type === 'object' && schema.properties) {
-      // Extract individual properties from request body
-      for (const propName of Object.keys(schema.properties)) {
-        parameterNames.push(propName);
-      }
-    } else {
-      // For non-object schemas, add a 'body' parameter
-      parameterNames.push('body');
-    }
-  }
-
-  return Array.from(new Set(parameterNames)); // Remove duplicates
+  return values;
 }

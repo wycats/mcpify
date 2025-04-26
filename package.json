@@ -5,6 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "node --experimental-strip-types packages/core/src/main.ts",
     "build": "pnpm --filter @mcpify/core build",
     "start:core": "pnpm --filter @mcpify/core start",
     "start:demo": "pnpm --filter @mcpify/demo start",

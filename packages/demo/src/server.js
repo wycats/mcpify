@@ -9,11 +9,19 @@ const __dirname = import.meta.dirname;
 
 // Initialize Express app
 const app = express();
-const port = 3000;
+// Allow port configuration via environment variable, default to 3000
+const port = process.env.PORT || 3001; // Change default to 3001 since 3000 is in use
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use((req, res, next) => {
+  req.time = new Date(Date.now()).toString();
+  console.group(req.method, req.hostname, req.path, req.time);
+  console.log('body', req.body);
+  console.groupEnd();
+  next();
+});
 
 // Sample data storage
 const users = [
@@ -198,6 +206,51 @@ app.get('/users/:id', (req, res) => {
   } else {
     res.status(404).json({ message: 'User not found' });
   }
+});
+
+/**
+ * @swagger
+ * /users/{id}:
+ *   delete:
+ *     summary: Delete a user
+ *     description: Deletes a user by ID
+ *     operationId: deleteUser
+ *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Numeric ID of the user to delete
+ *     responses:
+ *       200:
+ *         description: User successfully deleted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       404:
+ *         description: User not found
+ */
+app.delete('/users/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  const index = users.findIndex((user) => user.id === id);
+  
+  if (index === -1) {
+    return res.status(404).json({ message: 'User not found' });
+  }
+  
+  // Remove the user from the array
+  const deletedUser = users.splice(index, 1)[0];
+  
+  res.json({ 
+    message: `User ${deletedUser.name} (ID: ${deletedUser.id}) successfully deleted`,
+    deletedUser
+  });
 });
 
 /**

@@ -1,4 +1,3 @@
-import js from '@eslint/js';
 import typescript from '@typescript-eslint/eslint-plugin';
 import typescriptParser from '@typescript-eslint/parser';
 import prettier from 'eslint-config-prettier';
@@ -30,9 +29,6 @@ const importConfig = {
 };
 
 export default [
-  // Base ESLint recommended rules
-  js.configs.recommended,
-
   // Import rules (applied to all files)
   importConfig,
 

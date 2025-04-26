@@ -1,0 +1,14 @@
+{
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "typescript.preferences.preferTypeOnlyAutoImports": true,
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "javascript.preferences.importModuleSpecifier": "project-relative",
+  "typescript.preferences.importModuleSpecifier": "project-relative",
+  "editor.codeActionsOnSave": {
+    "source.removeUnusedImports": "always",
+    "source.formatDocument": "always",
+    "source.fixAll.eslint": "always"
+  },
+  "typescript.preferences.importModuleSpecifierEnding": "js",
+  "typescript.preferences.includePackageJsonAutoImports": "on"
+}
