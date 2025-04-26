@@ -1,41 +1,29 @@
 {
-  "name": "mcpify",
+  "name": "mcpify-monorepo",
   "version": "0.1.0",
-  "description": "A dynamic proxy that converts OpenAPI endpoints into MCP tools on the fly",
+  "description": "MCPify - Convert OpenAPI to MCP tools on the fly",
   "private": true,
   "type": "module",
-  "bin": {
-    "mcpify": "dist/main.js"
-  },
   "scripts": {
-    "dev": "vite",
-    "build": "tsc",
-    "start": "node --experimental-strip-types dist/main.js",
-    "preview": "vite preview",
-    "cli": "node --experimental-strip-types src/main.ts",
-    "lint": "eslint . --ext .ts,.tsx",
-    "lint:fix": "eslint . --ext .ts,.tsx --fix",
-    "lint:strict": "eslint . --ext .ts,.tsx --max-warnings 0",
-    "format": "prettier --write 'src/**/*.{ts,tsx}'",
-    "format:check": "prettier --check 'src/**/*.{ts,tsx}'",
-    "check": "pnpm lint && pnpm format:check"
+    "build": "pnpm --filter @mcpify/core build",
+    "start:core": "pnpm --filter @mcpify/core start",
+    "start:demo": "pnpm --filter @mcpify/demo start",
+    "dev:demo": "pnpm --filter @mcpify/demo dev",
+    "mcpify": "pnpm --filter @mcpify/demo mcpify",
+    "demo:test": "pnpm run -r --parallel dev:demo mcpify",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "lint:strict": "eslint . --max-warnings 0"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.1",
-    "@types/node": "^22.15.2",
-    "@types/swagger-parser": "^4.0.3",
+    "@total-typescript/ts-reset": "^0.6.1",
     "@typescript-eslint/eslint-plugin": "^8.31.0",
     "@typescript-eslint/parser": "^8.31.0",
+    "eslint": "^9.25.1",
     "eslint-config-prettier": "^10.1.2",
-    "typescript": "~5.8.3",
-    "vite": "^6.3.3"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.10.2",
-    "axios": "^1.9.0",
-    "commander": "^13.1.0",
-    "openapi-types": "^12.1.3",
-    "swagger-parser": "^10.0.3",
-    "zod": "^3.24.3"
+    "eslint-plugin-import": "^2.31.0",
+    "prettier": "^3.5.3",
+    "typescript": "~5.8.3"
   }
 }

@@ -1,0 +1,19 @@
+{
+  "name": "@mcpify/demo",
+  "version": "0.1.0",
+  "description": "Demo API server for testing MCPify",
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-strip-types src/server.js",
+    "dev": "node --watch --experimental-strip-types src/server.js",
+    "mcpify": "node --experimental-strip-types ../core/src/main.ts --spec http://localhost:3000/api-docs.json --port 8080"
+  },
+  "dependencies": {
+    "@mcpify/core": "workspace:*",
+    "cors": "^2.8.5",
+    "express": "^4.18.3",
+    "openapi-types": "^12.1.3",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.0"
+  }
+}
