@@ -27,11 +27,9 @@ export interface AppOptions {
 }
 
 export class App {
-  readonly #options: AppOptions;
   readonly #log: LogLayer;
 
   constructor(options: AppOptions) {
-    this.#options = options;
     this.#log = new LogLayer({
       transport: new ConsoleTransport({
         logger: new NodeConsole(process.stderr, process.stderr),
@@ -100,7 +98,8 @@ class MCPify {
    */
   public async start(): Promise<void> {
     try {
-      await this.#state.spec.createTools(this.#server);
+      this.#state.spec.createResources(this.#server);
+      this.#state.spec.createTools(this.#server);
 
       // Connect to appropriate transport
       if (this.#state.transport === 'http') {

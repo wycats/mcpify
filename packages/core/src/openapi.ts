@@ -1,5 +1,6 @@
+import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServer, ToolCallback } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import { compileErrors } from '@readme/openapi-parser';
 import type { LogLayer } from 'loglayer';
 import Oas from 'oas';
@@ -60,67 +61,94 @@ export class OpenApiSpec {
     return new ExtendedOperation(this.#app, verb, operation, extensions);
   }
 
-  async createTools(server: McpServer): Promise<void> {
-    const spec = this.#spec;
-    // Ensure we have a valid paths object, even if empty
-    // The OpenAPI spec should always have a paths object after parsing
-    const paths = spec.getPaths();
+  get #paths(): ExtendedOperation[] {
+    const paths = this.#spec.getPaths();
     if (Object.keys(paths).length === 0) {
       this.#log.warn('No paths found in the OpenAPI specification');
     }
 
+    return Object.values(paths)
+      .flatMap((path) =>
+        Object.entries(path).map(([method, operation]) => this.#operation(method, operation)),
+      )
+      .filter(Boolean);
+  }
+
+  createResources(server: McpServer): void {
+    const resources = this.#paths.filter((op) => op.isResource);
+
+    for (const operation of resources) {
+      const path = operation.oas.path;
+
+      if (/[{]/.exec(path)) {
+        const uriTemplate = new ResourceTemplate(`${this.#spec.url()}${path}`, {
+          list: undefined,
+        });
+        this.#log.debug(
+          `Converting ${operation.describe()} → ${operation.verb.describe()} resource "${operation.id}"`,
+        );
+        server.resource(
+          operation.oas.getOperationId({ friendlyCase: true }),
+          uriTemplate,
+          async (_, args): Promise<ReadResourceResult> => {
+            return operation.read(this.#spec, args);
+          },
+        );
+      } else {
+        this.#log.debug(
+          `Converting ${operation.describe()} → ${operation.verb.describe()} resource "${operation.id}"`,
+        );
+        server.resource(
+          operation.oas.getOperationId({ friendlyCase: true }),
+          `${this.#spec.url()}${path}`,
+          async (_, args): Promise<ReadResourceResult> => {
+            return operation.read(this.#spec, args);
+          },
+        );
+      }
+    }
+  }
+
+  createTools(server: McpServer): void {
     let endpointCount = 0;
 
-    // Process each path in the OpenAPI spec
-    for (const path of Object.values(paths)) {
-      // Process each HTTP method (GET, POST, etc.) for this path
-      for (const [method, op] of Object.entries(path)) {
-        const extended = this.#operation(method, op);
-        if (!extended) continue;
+    const tools = this.#paths.filter((p) => !p.isIgnored('tool'));
 
-        const operation = McpifyOperation.of(extended);
+    for (const operation of tools) {
+      endpointCount++;
 
-        // Skip if explicitly disabled via x-mcpify extension
-        if (operation.isIgnored) continue;
+      this.#log.debug(
+        `Converting ${operation.describe()} → ${operation.verb.describe()} tool "${operation.id}"`,
+      );
 
-        endpointCount++;
+      const action: ToolCallback<z.ZodRawShape> = async (
+        args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>,
+      ): Promise<CallToolResult> => {
+        this.#log.info(`Request from ${operation.describe()}:`, JSON.stringify(args, null, 2));
 
-        this.#log.debug(
-          `Converting ${operation.extended.describe()} → ${operation.verb.describe()} tool "${operation.id}"`,
+        return operation.invoke(this.#spec, args);
+      };
+
+      // Extract parameter schemas with full type information
+      const parameterSchemas = operation.parameters;
+
+      // Debug: Log the parameters being registered
+      this.#log.debug(
+        `Registering tool '${operation.id}' with parameters`,
+        JSON.stringify(parameterSchemas),
+      );
+
+      if (parameterSchemas) {
+        // Create tool with proper MCP SDK annotations
+        server.tool(
+          operation.id,
+          operation.description,
+          parameterSchemas,
+          operation.verb.hints,
+          action,
         );
-
-        const action: ToolCallback<z.ZodRawShape> = async (
-          args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>,
-        ): Promise<CallToolResult> => {
-          this.#log.info(
-            `Request from ${operation.extended.describe()}:`,
-            JSON.stringify(args, null, 2),
-          );
-
-          return operation.extended.invoke(this.#spec, args);
-        };
-
-        // Extract parameter schemas with full type information
-        const parameterSchemas = operation.extended.parameters;
-
-        // Debug: Log the parameters being registered
-        this.#log.debug(
-          `Registering tool '${operation.id}' with parameters`,
-          JSON.stringify(parameterSchemas),
-        );
-
-        if (parameterSchemas) {
-          // Create tool with proper MCP SDK annotations
-          server.tool(
-            operation.id,
-            operation.description,
-            parameterSchemas,
-            operation.verb.hints,
-            action,
-          );
-        } else {
-          server.tool(operation.id, operation.description, operation.verb.hints, action);
-        }
+      } else {
+        server.tool(operation.id, operation.description, operation.verb.hints, action);
       }
     }
 
@@ -150,59 +178,6 @@ async function parseSpec(specPath: string): Promise<{ spec: Oas }> {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log.error(`Failed to parse OpenAPI spec: ${errorMessage}`);
     throw error;
-  }
-}
-
-class McpifyOperation {
-  static of(operation: ExtendedOperation): McpifyOperation {
-    return new McpifyOperation(operation);
-  }
-
-  readonly #operation: ExtendedOperation;
-
-  private constructor(operation: ExtendedOperation) {
-    this.#operation = operation;
-  }
-
-  get #extensions(): OperationExtensions {
-    return this.#operation.extensions;
-  }
-
-  get oas(): PathOperation {
-    return this.#operation.oas;
-  }
-
-  get verb(): HttpVerb {
-    return this.#operation.verb;
-  }
-
-  get extended(): ExtendedOperation {
-    return this.#operation;
-  }
-
-  get isIgnored(): boolean {
-    return Boolean(this.#extensions.ignore);
-  }
-
-  get id(): string {
-    return this.#extensions.operationId ?? this.oas.getOperationId({ friendlyCase: true });
-  }
-
-  get description(): string {
-    if (this.#extensions.description) {
-      return this.#extensions.description;
-    }
-
-    const summary = this.oas.getSummary();
-    const description = this.oas.getDescription();
-
-    if (!summary && !description) {
-      return `${this.#operation.verb.uppercase} ${this.oas.path}`;
-    }
-
-    return [this.oas.getSummary(), this.oas.getDescription()].filter(Boolean).join(' - ');
-
-    // TODO: Incorporate examples and other metadata
   }
 }
 
