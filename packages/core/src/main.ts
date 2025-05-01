@@ -16,6 +16,7 @@ import type { LogLevel } from 'loglayer';
 
 // Internal dependencies
 import { OpenApiSpec } from './openapi.ts';
+import type Oas from 'oas';
 
 // Define the version from package.json
 const version = '0.1.0';
@@ -28,15 +29,16 @@ export interface AppOptions {
 
 export class App {
   readonly #log: LogLayer;
+  readonly #spec: Oas;
 
-  constructor(options: AppOptions) {
-    this.#log = new LogLayer({
-      transport: new ConsoleTransport({
-        logger: new NodeConsole(process.stderr, process.stderr),
+  constructor(spec: Oas, options: AppOptions) {
+      this.#log = new LogLayer({
+        transport: new ConsoleTransport({
+          logger: new NodeConsole(process.stderr, process.stderr),
 
-        level: options.logLevel,
-      }),
-    });
+          level: options.logLevel,
+        }),
+      });
   }
 
   get log(): LogLayer {

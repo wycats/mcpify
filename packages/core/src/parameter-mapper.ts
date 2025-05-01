@@ -1,15 +1,16 @@
 import type { CallToolResult, ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
-import oasToHar from '@readme/oas-to-har';
 import { merge } from 'allof-merge';
 import type { LogLayer } from 'loglayer';
 import type Oas from 'oas';
-import type { DataForHAR } from 'oas/types';
+import type { Operation } from 'oas/operation';
+import type { ServerVariable } from 'oas/types';
+import { parseTemplate } from 'url-template';
 import type { z } from 'zod';
 import { jsonSchemaObjectToZodRawShape } from 'zod-from-json-schema';
 import type { JSONSchema } from 'zod-from-json-schema';
 
-import type { App } from './main.ts';
-import type { ChangeSafety, HttpVerb } from './safety.ts';
+import { HttpVerb } from './safety.ts';
+import type { ChangeSafety } from './safety.ts';
 
 export type PathOperations = ReturnType<Oas['getPaths']>[string];
 export type PathOperation = PathOperations[keyof PathOperations];
@@ -22,12 +23,28 @@ export interface OperationExtensions {
 }
 
 export class ExtendedOperation {
-  #app: App;
+  static from(
+    operation: PathOperation,
+    extensions: OperationExtensions,
+    options: { log: LogLayer },
+  ): ExtendedOperation | null {
+    const verb = HttpVerb.from(operation.method);
+    if (!verb) return null;
+
+    return new ExtendedOperation(options, verb, operation, extensions);
+  }
+
+  #app: { log: LogLayer };
   #verb: HttpVerb;
   #operation: PathOperation;
   #extensions: OperationExtensions;
 
-  constructor(app: App, verb: HttpVerb, operation: PathOperation, extensions: OperationExtensions) {
+  constructor(
+    app: { log: LogLayer },
+    verb: HttpVerb,
+    operation: PathOperation,
+    extensions: OperationExtensions,
+  ) {
     this.#app = app;
     this.#verb = verb;
     this.#operation = operation;
@@ -151,30 +168,26 @@ export class ExtendedOperation {
     }
   }
 
-  async invoke(
-    spec: Oas,
-    args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>,
-  ): Promise<CallToolResult> {
-    const harData = bucketArgs(this, args);
+  buildRequest(spec: Oas, args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>): Request {
+    const harData = bucketArgs(this.oas, args);
 
     this.#log.debug('Calling operation with HAR Data', JSON.stringify(harData, null, 2));
 
     // 1) Get the minimal HAR entry
-    const { request } = oasToHar(spec, this.oas, harData).log.entries[0];
+    const request = buildRequest(this.#app, spec, this.oas, harData);
 
     this.#log.debug('Calling operation with HAR Data', JSON.stringify(request, null, 2));
 
-    // 2) Build fetch init
-    const headers = new Headers(request.headers.map((h) => [h.name, h.value] as [string, string]));
+    return request;
+  }
 
-    const init: RequestInit = {
-      method: request.method,
-      headers,
-      body: request.postData?.text,
-    };
+  async invoke(
+    spec: Oas,
+    args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>,
+  ): Promise<CallToolResult> {
+    const request = this.buildRequest(spec, args);
 
-    // 3) Fire it off
-    const response = await fetch(request.url, init);
+    const response = await fetch(request);
 
     return this.#toContent(this, response, request.url, this.#responseType);
   }
@@ -183,26 +196,19 @@ export class ExtendedOperation {
     spec: Oas,
     args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>,
   ): Promise<ReadResourceResult> {
-    const harData = bucketArgs(this, args);
+    const harData = bucketArgs(this.oas, args);
 
-    this.#log.debug('Calling operation with HAR Data', JSON.stringify(harData, null, 2));
+    this.#log.debug('Calling operation with Request Init', JSON.stringify(harData, null, 2));
 
     // 1) Get the minimal HAR entry
-    const { request } = oasToHar(spec, this.oas, harData).log.entries[0];
+    const { init, url } = buildRequestInit(this.#app, spec, this.oas, harData);
 
-    this.#log.debug('Calling operation with HAR Data', JSON.stringify(request, null, 2));
+    this.#log.debug('Calling operation with Request Init', JSON.stringify(init, null, 2));
 
-    // 2) Build fetch init
-    const headers = new Headers(request.headers.map((h) => [h.name, h.value] as [string, string]));
-
-    const init: RequestInit = {
-      method: request.method,
-      headers,
-      body: request.postData?.text,
-    };
+    const request = new Request(url, init);
 
     // 3) Fire it off
-    const response = await fetch(request.url, init);
+    const response = await fetch(request);
 
     return this.#readResource(this, response, request.url);
   }
@@ -310,38 +316,71 @@ export type OasResponseType =
   | 'application/x-www-form-urlencoded'
   | 'text/plain';
 
-export function bucketArgs(
-  operation: ExtendedOperation,
-  args: Record<string, unknown>,
-): DataForHAR {
-  const values: DataForHAR = {
+export type BucketLocation = 'path' | 'query' | 'header' | 'cookie';
+
+/** Minimal interface for operations used by bucketArgs */
+export interface BucketOperation {
+  oas: {
+    getParameters(): { name: string; in: 'path' | 'query' | 'header' | 'cookie' }[];
+    hasRequestBody(): boolean;
+    getContentType(): string | null;
+  };
+}
+
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+interface JsonObject {
+  [key: string]: JsonValue;
+}
+
+interface BucketedArgs {
+  body?: JsonValue;
+  cookie?: Record<string, string>;
+  formData?: FormData | null;
+  header?: Record<string, string>;
+  path?: Record<string, string>;
+  query?: Record<string, JsonValue>;
+  server?: {
+    selected: number;
+    variables?: ServerVariable;
+  };
+}
+
+export function bucketArgs(operation: PathOperation, args: JsonObject): BucketedArgs {
+  const values: BucketedArgs = {
     path: {},
     query: {},
     header: {},
     cookie: {},
-    formData: {},
+    formData: null as FormData | null,
   };
 
   const consumed = new Set<string>();
-  for (const p of operation.oas.getParameters()) {
+  for (const p of operation.getParameters()) {
     const val = args[p.name];
     consumed.add(p.name);
     if (val === undefined) continue;
 
-    (values[p.in] as Record<string, unknown>)[p.name] = val;
+    (values[p.in as keyof BucketedArgs] as Record<string, unknown>)[p.name] = val;
   }
 
-  const leftovers: Record<string, unknown> = {};
+  const leftovers: JsonObject = {};
   for (const [k, v] of Object.entries(args)) {
     if (consumed.has(k) || ['body', 'formData', 'auth', 'server'].includes(k)) continue;
     leftovers[k] = v;
   }
 
-  if (!operation.oas.hasRequestBody()) return values;
+  if (!operation.hasRequestBody()) return values;
 
-  const mime = operation.oas.getContentType();
+  const mime = operation.getContentType();
   if (mime === 'application/x-www-form-urlencoded') {
-    values.formData = { ...(values.formData ?? {}), ...leftovers };
+    values.formData = createFormData(leftovers);
   } else {
     // JSON, XML, binary, multipart, custom, …
     if (
@@ -350,13 +389,148 @@ export function bucketArgs(
       !Array.isArray(values.body)
     ) {
       // merge into existing JSON object
-      values.body = { ...(values.body as Record<string, unknown>), ...leftovers };
+      values.body = { ...values.body, ...leftovers };
     } else if (Object.keys(values.body ?? {}).length === 0) {
-      values.body = Object.keys(leftovers).length
-        ? leftovers
-        : (values.body as Record<string, unknown>);
+      values.body = Object.keys(leftovers).length ? leftovers : values.body;
     }
   }
 
   return values;
+}
+
+export type OasRequestArgs = z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>;
+
+export function buildRequest(
+  app: { log: LogLayer },
+  spec: Oas,
+  op: Operation,
+  args: OasRequestArgs,
+): Request {
+  const { init, url } = buildRequestInit(app, spec, op, args);
+
+  return new Request(url, init);
+}
+
+export function buildRequestInit(
+  app: { log: LogLayer },
+  spec: Oas,
+  op: Operation,
+  args: OasRequestArgs,
+): { init: RequestInit; url: URL } {
+  const harData = bucketArgs(op, args);
+
+  app.log.debug('Calling operation with HAR Data', JSON.stringify(harData, null, 2));
+
+  // Extract the base URL from the OAS specification
+  const baseUrl = getBaseUrl(spec, 'https://api.example.com');
+
+  // Log what we were able to find
+  app.log.debug(`Base URL resolution result: ${baseUrl || '(empty)'}`);
+
+  // Extract the path from the operation
+  const path = typeof op.path === 'string' ? op.path : '';
+  let url: URL | null = null;
+  const template = parseTemplate(path);
+  const pathParams = harData.path ?? {};
+  const expandedPath = template.expand(
+    Object.fromEntries(Object.entries(pathParams).map(([k, v]) => [k, String(v)])),
+  );
+  const baseURL = getBaseUrl(spec, 'https://api.example.com');
+  url = new URL(`${baseURL}${expandedPath}`);
+
+  // Add query parameters
+  if (harData.query && Object.keys(harData.query).length > 0) {
+    createSearchParams(harData.query, url.searchParams);
+  }
+
+  app.log.debug('Initial URL constructed', JSON.stringify({ baseUrl, path, url }));
+  console.log('Initial URL constructed', JSON.stringify({ baseUrl, path, url }));
+
+  let requestBody: string | FormData | undefined;
+
+  // Handle request body
+  if (harData.body !== undefined) {
+    // If body is provided directly as a string
+    if (typeof harData.body === 'string') {
+      requestBody = harData.body;
+    }
+    // If body is an object, convert to JSON if appropriate
+    else if (harData.body !== null && typeof harData.body === 'object') {
+      try {
+        requestBody = JSON.stringify(harData.body);
+      } catch (jsonError) {
+        app.log.debug('Error stringifying JSON body', String(jsonError));
+      }
+    }
+  }
+  // Handle form data
+  else if (harData.formData) {
+    requestBody = harData.formData;
+  }
+
+  // Create the RequestInit object
+  const init: RequestInit = {
+    method: op.method,
+    headers: new Headers(),
+    body: requestBody,
+  };
+
+  return { init, url };
+}
+
+function createSearchParams(
+  input: Record<string, JsonValue>,
+  params = new URLSearchParams(),
+): URLSearchParams {
+  for (const [key, value] of Object.entries(input)) {
+    appendData(params, key, value);
+  }
+  console.log(params);
+  return params;
+}
+
+function createFormData(input: Record<string, JsonValue>): FormData {
+  const formData = new FormData();
+  for (const [key, value] of Object.entries(input)) {
+    appendData(formData, key, value);
+  }
+  return formData;
+}
+
+function appendData(formData: FormData | URLSearchParams, key: string, input: JsonValue): void {
+  switch (typeof input) {
+    case 'string':
+    case 'number':
+    case 'boolean':
+      formData.append(key, String(input));
+      break;
+    case 'object':
+      if (input === null) {
+        formData.append(key, '');
+        break;
+      }
+      if (Array.isArray(input)) {
+        input.forEach((v) => {
+          appendData(formData, key, v);
+        });
+      } else {
+        Object.entries(input).forEach(([k, v]) => {
+          appendData(formData, `${key}[${k}]`, v);
+        });
+      }
+      break;
+    default:
+      formData.append(key, String(input));
+  }
+}
+
+function getBaseUrl(oas: Oas, fallback: string): string {
+  const url = oas.url() || fallback;
+
+  // Ensure the base URL doesn't end with a slash
+  if (url.endsWith('/')) {
+    return url.slice(0, -1);
+  }
+
+  return url;
 }

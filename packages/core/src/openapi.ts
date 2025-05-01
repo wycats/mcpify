@@ -181,7 +181,7 @@ async function parseSpec(specPath: string): Promise<{ spec: Oas }> {
   }
 }
 
-function normalizeExtensions(extensions: unknown): OperationExtensions {
+export function normalizeExtensions(extensions: unknown): OperationExtensions {
   if (typeof extensions !== 'object' || extensions === null) {
     return {};
   }
