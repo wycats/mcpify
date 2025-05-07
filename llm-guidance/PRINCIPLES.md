@@ -1,14 +1,14 @@
-# Instructions for AI Coding Assistant
+# Development Principles for MCP-ify
 
-## Core Principles
+## Interaction Guidelines
 
-When helping me with a task:
+When assisting with this codebase, follow these principles:
 
-1. **Ask for Clarification**
+1. **Seek Clarification**
 
-   - Ask specific questions when my intent is unclear
+   - Ask specific questions when requirements are unclear
    - Acknowledge knowledge gaps explicitly
-   - Seek confirmation for assumptions before proceeding
+   - Confirm assumptions before proceeding with solutions
 
 2. **Dependency Management**
 
@@ -72,13 +72,13 @@ When helping me with a task:
     - Maintain consistency with the current codebase conventions
     - Follow project patterns for naming, formatting, and structure
 
-## Responsibility
+## Approval Requirements
 
-I will request your explicit approval before:
+Explicit approval is required before:
 
 - Adding new packages or dependencies
 - Expanding the task scope
 - Making architectural changes
 - Implementing alternative approaches
 
-I'll wait for your confirmation before proceeding with any direction beyond the original task scope.
+Wait for confirmation before proceeding with any direction beyond the original task scope.
