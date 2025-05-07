@@ -306,26 +306,49 @@ describe('bucketArgs()', () => {
     });
   });
 
-  it.todo('handles application/x-www-form-urlencoded content type', async () => {
+  it('handles application/x-www-form-urlencoded content type', async () => {
     const { build } = createOp(
       'post',
       { id: 'path' },
       z.object({
         name: z.string(),
+        interests: z.array(z.string()),
+        profile: z.object({
+          age: z.number(),
+          location: z.string(),
+        }),
       }),
       { contentType: 'application/x-www-form-urlencoded' },
     );
 
-    const request = build({ id: '42', name: 'form data' });
-
+    const request = build({ 
+      id: '42', 
+      name: 'form data', 
+      interests: ['coding', 'testing'],
+      profile: {
+        age: 30,
+        location: 'San Francisco'
+      }
+    });
+    
+    // Check headers and URL
     await expect(request).toMatchRequest({
       url: '/test/42',
       method: 'POST',
       headers: new Headers({
         'content-type': 'application/x-www-form-urlencoded',
       }),
-      body: { name: 'form data' },
+      // Only verify the content-type header but not the body content
     });
+    
+    // Now we should get properly URL-encoded form data
+    const bodyText = await request.clone().text();
+    // Check that the form data is URL-encoded format
+    expect(bodyText).toContain('name=form+data');
+    expect(bodyText).toContain('interests=coding');
+    expect(bodyText).toContain('interests=testing');
+    expect(bodyText).toContain('profile%5Bage%5D=30');
+    expect(bodyText).toContain('profile%5Blocation%5D=San+Francisco');
   });
 
   it('handles multiple parameter types together', async () => {

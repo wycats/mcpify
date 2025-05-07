@@ -1,4 +1,3 @@
-// test/setupRequestMatchers.ts
 import { expect } from 'vitest';
 
 export interface ExpectedRequest {
@@ -22,8 +21,6 @@ async function compareRequest(received: Request, expected: ExpectedRequest): Pro
     }
   }
 
-  console.log('Expected URL', expectedUrl);
-  console.log('Received URL', received.url);
   if (expected.url !== undefined) expect(received.url).toBe(String(expectedUrl));
 
   if (expected.method !== undefined)

@@ -342,7 +342,7 @@ interface JsonObject {
 interface BucketedArgs {
   body?: JsonValue;
   cookie?: Record<string, string>;
-  formData?: FormData | null;
+  formData?: FormData | URLSearchParams | null; // For form-urlencoded or multipart form data
   header?: Record<string, string>;
   path?: Record<string, string>;
   query?: Record<string, JsonValue>;
@@ -358,7 +358,7 @@ export function bucketArgs(operation: PathOperation, args: JsonObject): Bucketed
     query: {},
     header: {},
     cookie: {},
-    formData: null as FormData | null,
+    formData: null as FormData | URLSearchParams | null,
   };
 
   const consumed = new Set<string>();
@@ -444,9 +444,10 @@ export function buildRequestInit(
   }
 
   app.log.debug('Initial URL constructed', JSON.stringify({ baseUrl, path, url }));
-  console.log('Initial URL constructed', JSON.stringify({ baseUrl, path, url }));
+  app.log.debug('Initial URL constructed', JSON.stringify({ baseUrl, path, url }));
 
   let requestBody: string | FormData | undefined;
+  let contentType: string | null = null;
 
   // Handle request body
   if (harData.body !== undefined) {
@@ -458,6 +459,7 @@ export function buildRequestInit(
     else if (harData.body !== null && typeof harData.body === 'object') {
       try {
         requestBody = JSON.stringify(harData.body);
+        contentType = 'application/json';
       } catch (jsonError) {
         app.log.debug('Error stringifying JSON body', String(jsonError));
       }
@@ -465,7 +467,12 @@ export function buildRequestInit(
   }
   // Handle form data
   else if (harData.formData) {
-    requestBody = harData.formData;
+    if (harData.formData instanceof URLSearchParams) {
+      requestBody = harData.formData.toString(); // Convert URLSearchParams to string for proper encoding
+    } else {
+      requestBody = harData.formData;
+    }
+    contentType = 'application/x-www-form-urlencoded';
   }
 
   // Create the RequestInit object
@@ -474,6 +481,11 @@ export function buildRequestInit(
     headers: new Headers(),
     body: requestBody,
   };
+  
+  // Set content type if we have one
+  if (contentType) {
+    (init.headers as Headers).set('Content-Type', contentType);
+  }
 
   return { init, url };
 }
@@ -485,16 +497,16 @@ function createSearchParams(
   for (const [key, value] of Object.entries(input)) {
     appendData(params, key, value);
   }
-  console.log(params);
+  // Debug statement removed (no access to app.log in this scope)
   return params;
 }
 
-function createFormData(input: Record<string, JsonValue>): FormData {
-  const formData = new FormData();
+function createFormData(input: Record<string, JsonValue>): URLSearchParams {
+  const params = new URLSearchParams();
   for (const [key, value] of Object.entries(input)) {
-    appendData(formData, key, value);
+    appendData(params, key, value);
   }
-  return formData;
+  return params;
 }
 
 function appendData(formData: FormData | URLSearchParams, key: string, input: JsonValue): void {

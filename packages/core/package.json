@@ -4,6 +4,7 @@
   "description": "A dynamic proxy that converts OpenAPI endpoints into MCP tools on the fly",
   "type": "module",
   "exports": {
+  
     ".": "./src/main.ts"
   },
   "scripts": {
@@ -38,7 +39,7 @@
   "dependencies": {
     "@apidevtools/json-schema-ref-parser": "^12.0.1",
     "@commander-js/extra-typings": "^13.1.0",
-    "@modelcontextprotocol/sdk": "https://github.com/modelcontextprotocol/typescript-sdk.git",
+    "@modelcontextprotocol/sdk": "^1.11.0",
     "@readme/httpsnippet": "^11.0.0",
     "@readme/oas-to-har": "^26.0.0",
     "@readme/openapi-parser": "^4.0.0",
