@@ -482,7 +482,7 @@ export function buildRequestInit(
 
   // Create the RequestInit object
   const init: RequestInit = {
-    method: op.method,
+    method: op.method.toUpperCase(), // Always use uppercase HTTP methods for standard compliance
     headers: new Headers(),
     body: requestBody,
   };
