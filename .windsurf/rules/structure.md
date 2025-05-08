@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # Project Structure
 
 This document outlines the organization of the MCP-ify codebase to help you navigate and understand its components.

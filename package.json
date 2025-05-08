@@ -7,6 +7,10 @@
   "scripts": {
     "dev": "node --experimental-strip-types packages/core/src/main.ts",
     "build": "pnpm --filter @mcpify/core build",
+    "test": "pnpm vitest --run",
+    "test:watch": "pnpm vitest --watch",
+    "test:coverage": "pnpm vitest run --coverage",
+    "test:ui": "pnpm vitest --ui",
     "start:core": "pnpm --filter @mcpify/core start",
     "start:demo": "pnpm --filter @mcpify/demo start",
     "dev:demo": "pnpm --filter @mcpify/demo dev",

@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # Development Principles for MCP-ify
 
 ## Interaction Guidelines

@@ -146,12 +146,17 @@ export class ExtendedOperation {
     }) as ReturnType<PathOperation['getParametersAsJSONSchema']> | null;
 
     // Return empty schema when there are no parameters
-    if (!params || params.length === 0) {
+    if (!params) {
       return null;
     }
 
-    const { schema } = params[0];
-    return merge(schema) as JSONSchema;
+    const [param] = params;
+
+    if (!param) {
+      return null;
+    }
+
+    return merge(param.schema) as JSONSchema;
   }
 
   get hasParameters(): boolean {
@@ -481,7 +486,7 @@ export function buildRequestInit(
     headers: new Headers(),
     body: requestBody,
   };
-  
+
   // Set content type if we have one
   if (contentType) {
     (init.headers as Headers).set('Content-Type', contentType);

@@ -157,26 +157,66 @@ export class OpenApiSpec {
 }
 
 /**
+ * Interface for a normalizer that can validate, dereference, and bundle an OpenAPI spec
+ */
+export interface SpecNormalizer {
+  validate(): Promise<{ valid: boolean; errors?: unknown[] }>;
+  dereference(): Promise<unknown>;
+  bundle(): Promise<unknown>; // Less specific type to avoid compatibility issues
+}
+
+/**
+ * Dependencies needed by the parseSpec function, abstracted to support testing
+ */
+export interface ParseSpecDependencies {
+  createNormalizer: (specPath: string) => SpecNormalizer;
+  createOas: (doc: unknown) => Oas; // Use less specific type
+  compileErrors: (validation: unknown) => string;
+  logger: { error: (message: string) => void };
+}
+
+// Define default dependencies that use the actual implementation
+const defaultDependencies: ParseSpecDependencies = {
+  createNormalizer: (specPath: string) => new OASNormalize(specPath) as unknown as SpecNormalizer,
+  createOas: (doc: unknown) => new Oas(doc as OASDocument),
+  // Type assertion is unavoidable when adapting between the generic interface and the specific implementation
+  compileErrors: (validation: unknown) => {
+    if (!validation || typeof validation !== 'object') {
+      return `Invalid validation result: ${String(validation)}`;
+    }
+    
+    // At runtime, we expect validation from OASNormalize which should match what compileErrors expects
+    // We need to bypass TypeScript's type checking here
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return compileErrors(validation as any);
+  },
+  logger: log
+};
+
+/**
  * Parse the OpenAPI specification
  */
-async function parseSpec(specPath: string): Promise<{ spec: Oas }> {
+async function parseSpec(
+  specPath: string, 
+  deps: ParseSpecDependencies = defaultDependencies
+): Promise<{ spec: Oas }> {
   try {
-    const oas = new OASNormalize(specPath);
-    const validation = await oas.validate();
+    const normalizer = deps.createNormalizer(specPath);
+    const validation = await normalizer.validate();
 
     if (!validation.valid) {
-      const msg = compileErrors(validation);
+      const msg = deps.compileErrors(validation);
       throw new Error(msg);
     }
 
-    await oas.dereference();
+    await normalizer.dereference();
 
-    const spec = new Oas((await oas.bundle()) as OASDocument);
+    const spec = deps.createOas((await normalizer.bundle()));
 
     return { spec };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    log.error(`Failed to parse OpenAPI spec: ${errorMessage}`);
+    deps.logger.error(`Failed to parse OpenAPI spec: ${errorMessage}`);
     throw error;
   }
 }

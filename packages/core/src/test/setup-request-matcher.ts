@@ -1,3 +1,4 @@
+import qs from 'qs';
 import { expect } from 'vitest';
 
 export interface ExpectedRequest {
@@ -8,72 +9,164 @@ export interface ExpectedRequest {
   body?: object; // JSON-serialisable
 }
 
-async function compareRequest(received: Request, expected: ExpectedRequest): Promise<void> {
-  const expectedUrl = new URL(`https://example.com${expected.url}`);
+// Helper to parse the request body based on content type
+async function parseRequestBody(
+  request: Request,
+): Promise<{ parsed: unknown; contentType: string | null }> {
+  const text = await request.clone().text(); // don't consume original
+  let parsed: unknown;
 
-  for (const [key, value] of Object.entries(expected.query ?? {})) {
-    if (Array.isArray(value)) {
-      for (const v of value) {
-        expectedUrl.searchParams.append(key, v);
-      }
-    } else {
-      expectedUrl.searchParams.set(key, value);
+  const contentType = request.headers.get('content-type');
+
+  if (contentType?.includes('application/x-www-form-urlencoded')) {
+    parsed = qs.parse(text);
+  } else {
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = text;
     }
   }
 
-  if (expected.url !== undefined) expect(received.url).toBe(String(expectedUrl));
+  return { parsed, contentType };
+}
 
-  if (expected.method !== undefined)
-    expect(received.method.toLowerCase()).toBe(expected.method.toLowerCase());
+// Checks if two values are equal (for primitives)
+function areEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
 
-  if (expected.headers !== undefined) {
-    const actualHeaders = Object.fromEntries(received.headers);
-    expect(actualHeaders).toEqual(
-      expect.objectContaining(
-        Object.fromEntries(Object.entries(expected.headers).map(([k, v]) => [k.toLowerCase(), v])),
-      ),
-    );
+  // Handle special cases like NaN
+  if (typeof a === 'number' && typeof b === 'number' && isNaN(a) && isNaN(b)) return true;
+
+  return false;
+}
+
+// Simple deep equality check
+function deepEqual(a: unknown, b: unknown): boolean {
+  // Handle primitives
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') {
+    return areEqual(a, b);
   }
 
-  if (expected.body !== undefined) {
-    const text = await received.clone().text(); // don’t consume original
-    let parsed: unknown;
-
-    // Check content-type to determine how to parse the body
-    const contentType = received.headers.get('content-type');
-
-    if (contentType?.includes('application/x-www-form-urlencoded')) {
-      // Parse form-urlencoded data into an object
-      const formData = new URLSearchParams(text);
-      parsed = Object.fromEntries(formData.entries());
-    } else {
-      // Try to parse as JSON first
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        parsed = text;
-      }
+  // Handle arrays
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEqual(a[i], b[i])) return false;
     }
-
-    expect(parsed).toEqual(expected.body);
+    return true;
   }
+
+  // Handle objects
+  const keysA = Object.keys(a);
+  const keysB = new Set(Object.keys(b));
+
+  // Check if all keys in a are in b with equal values
+  for (const key of keysA) {
+    if (!keysB.has(key)) return false;
+    if (!deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]))
+      return false;
+    keysB.delete(key);
+  }
+
+  // Check if any keys in b are not in a
+  return keysB.size === 0;
 }
 
 /* --- Register the matcher with Vitest --------------------------- */
 expect.extend({
   async toMatchRequest(this, received: Request, expected: ExpectedRequest) {
-    try {
-      await compareRequest(received, expected);
-      return {
-        pass: true,
-        message: () => 'Request matched expected shape',
-      };
-    } catch (error: unknown) {
-      return {
-        pass: false,
-        message: () => (error as Error).message || String(error),
-      };
+    // Validate URL
+    if (expected.url !== undefined) {
+      const expectedUrl = new URL(`https://example.com${expected.url}`);
+
+      // Add query parameters to URL
+      for (const [key, value] of Object.entries(expected.query ?? {})) {
+        if (Array.isArray(value)) {
+          for (const v of value) {
+            expectedUrl.searchParams.append(key, v);
+          }
+        } else {
+          expectedUrl.searchParams.set(key, value);
+        }
+      }
+
+      const expectedUrlString = String(expectedUrl);
+      if (received.url !== expectedUrlString) {
+        return {
+          pass: false,
+          actual: received.url,
+          expected: expectedUrlString,
+          message: () => `URL mismatch`,
+        };
+      }
     }
+
+    // Validate method
+    if (expected.method !== undefined) {
+      const expectedMethod = expected.method.toLowerCase();
+      const receivedMethod = received.method.toLowerCase();
+
+      if (receivedMethod !== expectedMethod) {
+        return {
+          pass: false,
+          actual: receivedMethod,
+          expected: expectedMethod,
+          message: () => `Method mismatch`,
+        };
+      }
+    }
+
+    // Validate headers
+    if (expected.headers !== undefined) {
+      const actualHeaders = Object.fromEntries(received.headers);
+      const expectedHeaders = Object.fromEntries(
+        Object.entries(expected.headers).map(([k, v]) => [k.toLowerCase(), v as unknown]),
+      );
+
+      for (const [key, expectedValue] of Object.entries(expectedHeaders)) {
+        const actualValue = actualHeaders[key];
+
+        if (actualValue === undefined) {
+          return {
+            pass: false,
+            actual: actualValue,
+            expected: expectedValue,
+            message: () => `Missing header: ${key}`,
+          };
+        } else if (actualValue !== expectedValue) {
+          return {
+            pass: false,
+            actual: actualValue,
+            expected: expectedValue,
+            message: () => `Header '${key}' mismatch`,
+          };
+        }
+      }
+    }
+
+    // Validate body
+    if (expected.body !== undefined) {
+      const { parsed, contentType } = await parseRequestBody(received);
+
+      // Do a deep equality check first
+      if (!deepEqual(parsed, expected.body)) {
+        // This is the key part: we're NOT throwing an error with a message
+        // Instead, we're returning the objects so Vitest can generate a diff
+        return {
+          pass: false,
+          actual: parsed,
+          expected: expected.body,
+          message: () => `Request body (contentType: ${contentType}) did not match expected body`,
+        };
+      }
+    }
+
+    // Everything passed
+    return {
+      pass: true,
+      message: () => 'Request matched expected shape',
+    };
   },
 });
 

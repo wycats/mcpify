@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # MCP-ify LLM Guidance
 
 Welcome to the MCP-ify project. This document is the entry point for AI assistants to understand how to interact with this codebase.
@@ -6,8 +10,8 @@ Welcome to the MCP-ify project. This document is the entry point for AI assistan
 
 1. Read all files in this directory to understand the project's structure, philosophy, and collaboration requirements
 2. Follow the principles in `PRINCIPLES.md` when developing solutions
-3. Use `STRUCTURE.md` to understand the organization of the codebase
-4. Consult `PATTERNS.md` for common design patterns used in this project
+3. Use `structure.md` to understand the organization of the codebase
+4. Consult `patterns.md` for common design patterns used in this project
 
 ## Project Overview
 
@@ -38,8 +42,9 @@ When asked to help with this codebase:
 
 Each guidance file has a specific purpose:
 
-- **PRINCIPLES.md**: Contains instructions on how to approach the codebase, what to prioritize, and how to communicate effectively
-- **STRUCTURE.md**: Explains the project organization, build process, and development workflow
-- **PATTERNS.md**: Documents TypeScript patterns, testing approaches, and coding conventions
+- **types.md**:
+- **principles.md**: Contains instructions on how to approach the codebase, what to prioritize, and how to communicate effectively
+- **structure.md**: Explains the project organization, build process, and development workflow
+- **patterns.md**: Documents TypeScript patterns, testing approaches, and coding conventions
 
 Review these files before making suggestions or changes to ensure alignment with the project's practices.

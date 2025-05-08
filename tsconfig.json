@@ -14,17 +14,13 @@
     "noImplicitAny": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
     "allowArbitraryExtensions": true,
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true
   },
-  "include": [
-    "packages/*/src/**/*.ts",
-    "reset.d.ts"
-  ],
-  "exclude": [
-    "**/node_modules",
-    "**/dist"
-  ]
+  "include": ["packages/*/src/**/*.ts", "reset.d.ts"],
+  "exclude": ["**/node_modules", "**/dist"]
 }

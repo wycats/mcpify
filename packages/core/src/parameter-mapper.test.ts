@@ -1,6 +1,8 @@
 import { LogLayer, TestLoggingLibrary, TestTransport } from 'loglayer';
 import Oas from 'oas';
+import type { OperationObject, PathsObject } from 'oas/types';
 import type { OpenAPIV3 } from 'openapi-types';
+import qs from 'qs';
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -35,7 +37,7 @@ function createOp(
     }),
   });
 
-  const paths: Record<string, Record<string, unknown>> = {
+  const paths: Record<'/test/{id}', Partial<Record<Verb, OperationObject>>> = {
     '/test/{id}': {
       get: {
         operationId: 'test',
@@ -78,10 +80,10 @@ function createOp(
         },
       },
     },
-  };
+  } satisfies PathsObject;
 
   // Add additional verb methods
-  ['put', 'delete', 'patch'].forEach((method) => {
+  for (const method of ['head', 'options', 'put', 'delete', 'patch'] as const) {
     paths['/test/{id}'][method] = {
       operationId: `${method}Test`,
       parameters,
@@ -100,8 +102,8 @@ function createOp(
           },
         },
       },
-    };
-  });
+    } satisfies OperationObject;
+  }
 
   const oas = new Oas({
     openapi: 'hello',
@@ -109,10 +111,12 @@ function createOp(
       title: 'test',
       version: '1.0.0',
     },
-    paths,
+    paths: paths as PathsObject,
   });
 
-  const verbs: Record<string, PathOperation> = {
+  const verbs: Record<Verb, PathOperation> = {
+    head: oas.getOperationById('headTest'),
+    options: oas.getOperationById('optionsTest'),
     get: oas.getOperationById('test'),
     post: oas.getOperationById('createTest'),
     put: oas.getOperationById('putTest'),
@@ -321,16 +325,16 @@ describe('bucketArgs()', () => {
       { contentType: 'application/x-www-form-urlencoded' },
     );
 
-    const request = build({ 
-      id: '42', 
-      name: 'form data', 
+    const request = build({
+      id: '42',
+      name: 'form data',
       interests: ['coding', 'testing'],
       profile: {
         age: 30,
-        location: 'San Francisco'
-      }
+        location: 'San Francisco',
+      },
     });
-    
+
     // Check headers and URL
     await expect(request).toMatchRequest({
       url: '/test/42',
@@ -338,17 +342,29 @@ describe('bucketArgs()', () => {
       headers: new Headers({
         'content-type': 'application/x-www-form-urlencoded',
       }),
+      body: {
+        name: 'form data',
+        interests: ['coding', 'testing'],
+        profile: {
+          age: '30',
+          location: 'San Francisco',
+        },
+      },
       // Only verify the content-type header but not the body content
     });
-    
+
     // Now we should get properly URL-encoded form data
     const bodyText = await request.clone().text();
     // Check that the form data is URL-encoded format
-    expect(bodyText).toContain('name=form+data');
-    expect(bodyText).toContain('interests=coding');
-    expect(bodyText).toContain('interests=testing');
-    expect(bodyText).toContain('profile%5Bage%5D=30');
-    expect(bodyText).toContain('profile%5Blocation%5D=San+Francisco');
+    const parsedData = qs.parse(bodyText, { depth: Infinity });
+    expect(parsedData).toEqual({
+      name: 'form data',
+      interests: ['coding', 'testing'],
+      profile: {
+        age: '30',
+        location: 'San Francisco',
+      },
+    });
   });
 
   it('handles multiple parameter types together', async () => {
