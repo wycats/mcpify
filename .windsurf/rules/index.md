@@ -11,7 +11,7 @@ Welcome to the MCP-ify project. This document is the entry point for AI assistan
 1. Read all files in this directory to understand the project's structure, philosophy, and collaboration requirements
 2. Follow the principles in `PRINCIPLES.md` when developing solutions
 3. Use `structure.md` to understand the organization of the codebase
-4. Consult `patterns.md` for common design patterns used in this project
+4. Consult `testing.md` for testing patterns and practices used in this project
 
 ## Project Overview
 
@@ -42,9 +42,9 @@ When asked to help with this codebase:
 
 Each guidance file has a specific purpose:
 
-- **types.md**:
+- **types.md**: Documents TypeScript patterns and coding conventions
 - **principles.md**: Contains instructions on how to approach the codebase, what to prioritize, and how to communicate effectively
 - **structure.md**: Explains the project organization, build process, and development workflow
-- **patterns.md**: Documents TypeScript patterns, testing approaches, and coding conventions
+- **testing.md**: Outlines testing guidelines, including dependency injection patterns and test structure
 
 Review these files before making suggestions or changes to ensure alignment with the project's practices.
