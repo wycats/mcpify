@@ -13,6 +13,11 @@
   "[javascript][typescript][json][jsonc]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
+  "[git-commit]": {
+    "editor.rulers": [50, 72],
+    "editor.wordWrap": "off",
+    "workbench.editor.restoreViewState": false
+  },
   "typescript.preferences.importModuleSpecifierEnding": "js",
   "typescript.preferences.includePackageJsonAutoImports": "on",
   "explorer.fileNesting.enabled": true,
@@ -23,5 +28,6 @@
     "*.tsx": "${capture}.ts",
     "tsconfig.json": "tsconfig.*.json",
     "package.json": "package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb, bun.lock"
-  }
+  },
+  "rewrap.autoWrap.notification": "icon"
 }

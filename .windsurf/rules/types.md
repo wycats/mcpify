@@ -100,3 +100,31 @@ function updateConfig(config: Config, updates: Partial<Config>): void {
   Object.assign(config, updates); // Mutation!
 }
 ```
+
+## Linting Directives
+
+This codebase maintains high code quality standards by avoiding directive-based suppression of type checking and linting rules:
+
+```typescript
+// ❌ NEVER use: Suppressing ESLint rules
+// eslint-disable-next-line no-unused-vars
+const unusedVariable = 'something';
+
+// ✅ Correct: Fix the underlying issue instead
+const usedVariable = 'something';
+console.log(usedVariable);
+
+// ❌ NEVER use: Suppressing TypeScript errors without explicit instruction
+// @ts-expect-error this is convenient but dangerous
+const result = someFunction(invalidArgument);
+
+// ✅ Correct: Properly type the code or refactor to avoid the error
+const result = someFunction(validArgument);
+```
+
+Strict adherence to these principles:
+
+- NEVER use `eslint-disable` directives (including line, next-line, or block variants) unless explicitly instructed
+- NEVER use `@ts-expect-error` or `@ts-ignore` directives unless explicitly instructed
+- If you encounter a situation where such directives seem necessary, propose alternative solutions that maintain type safety and code quality instead
+- When instructed to use these directives, always include a detailed comment explaining exactly why the directive is necessary
