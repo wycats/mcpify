@@ -10,9 +10,105 @@ import type { BucketLocation, PathOperation, OasRequestArgs } from './parameter-
 import { buildRequest } from './parameter-mapper.ts';
 import type { Verb } from './utils.ts';
 
-function createOp(
+/**
+ * Builds an OpenAPI operation object for testing purposes
+ * @param verb HTTP verb for the operation
+ * @param path Path template for the operation
+ * @param options Optional configuration including query params and body schema
+ * @returns A PathOperation object that can be used for testing
+ */
+export function buildOp(
   verb: Extract<Verb, 'get' | 'post' | 'put' | 'delete' | 'patch'>,
-  params: Record<string, BucketLocation>,
+  path: string,
+  options?: {
+    query?: Record<string, string>;
+    body?: z.ZodSchema;
+    contentType?: string;
+  },
+): PathOperation {
+  const paramNames = path
+    .split('/')
+    .filter((part) => part.startsWith('{') && part.endsWith('}'))
+    .map((part) => part.slice(1, -1));
+
+  const parameters: OpenAPIV3.ParameterObject[] = paramNames.map((name) => ({
+    name,
+    in: 'path',
+    required: true,
+    schema: { type: 'string' } as OpenAPIV3.SchemaObject,
+  }));
+
+  if (options?.query) {
+    parameters.push(
+      ...Object.keys(options.query).map((name) => ({
+        name,
+        in: 'query',
+        required: false,
+        schema: { type: 'string' } as OpenAPIV3.SchemaObject,
+      })),
+    );
+  }
+
+  const operationObj: OpenAPIV3.OperationObject = {
+    operationId: 'test',
+    parameters,
+    responses: {
+      '200': {
+        description: '200',
+      },
+    },
+  };
+
+  // Add request body configuration for methods that may have bodies
+  if (verb !== 'get' && verb !== 'delete') {
+    // If a body schema is provided, use it, otherwise create a generic one
+    if (options?.body) {
+      const contentType = options.contentType ?? 'application/json';
+      const schema = zodToJsonSchema(options.body) as OpenAPIV3.SchemaObject;
+      
+      operationObj.requestBody = {
+        content: {
+          [contentType]: {
+            schema,
+          },
+        },
+        required: true,
+      };
+    } else {
+      // For POST/PUT/PATCH with no defined schema, still allow a body
+      operationObj.requestBody = {
+        content: {
+          'application/json': {
+            schema: { 
+              type: 'object',
+              additionalProperties: true
+            } as OpenAPIV3.SchemaObject,
+          },
+        },
+        required: false,
+      };
+    }
+  }
+
+  const oas = new Oas({
+    openapi: '3.0.0',
+    info: {
+      title: 'Test API',
+      version: '1.0.0',
+    },
+    paths: {
+      [path]: {
+        [verb]: operationObj,
+      },
+    },
+  });
+
+  return oas.operation(path, verb);
+}
+
+export function createOp(
+  verb: Extract<Verb, 'get' | 'post' | 'put' | 'delete' | 'patch'>,
+  params: Record<string, BucketLocation> = {},
   body?: z.ZodSchema,
   options: { contentType?: string } = {},
 ): {

@@ -8,7 +8,7 @@ import type { JSONSchema } from 'zod-from-json-schema';
 import { jsonSchemaObjectToZodRawShape } from 'zod-from-json-schema';
 
 import type { ServerVariable } from './request/index.ts';
-import { parseTemplate, merge } from './request/index.ts';
+import { parseTemplate } from './request/index.ts';
 import type { ChangeSafety } from './safety.ts';
 import { HttpVerb } from './safety.ts';
 import { ResponseSchemaExtractor } from './schema/response-schema.ts';
@@ -61,14 +61,14 @@ export class ExtendedOperation {
     this.#responseSchemaExtractor = new ResponseSchemaExtractor(
       // Cast to unknown first to avoid direct type assertion errors
       operation as unknown as Oas & { path: string; method: string },
-      app.log
+      app.log,
     );
   }
 
   get #log(): LogLayer {
     return this.#app.log;
   }
-  
+
   /**
    * Returns whether this operation has any parameters
    * @returns true if the operation has any parameters (path, query, header, etc.)
@@ -164,7 +164,7 @@ export class ExtendedOperation {
 
   /**
    * Get the parameters schema as a Zod raw shape for validation
-   * 
+   *
    * @returns A Zod raw shape or null if no parameters exist
    */
   get parameters(): z.ZodRawShape | null {
@@ -220,7 +220,7 @@ export class ExtendedOperation {
 
     try {
       // Default to application/json if no content type is specified
-      // The OAS library should always return a string (possibly empty) for getContentType() 
+      // The OAS library should always return a string (possibly empty) for getContentType()
       const contentType = this.oas.getContentType() || 'application/json';
 
       // Since OAS doesn't expose requestBody schema directly, we need to access the
@@ -362,7 +362,7 @@ export class ExtendedOperation {
 
     // Case 2: Only parameter schema exists
     if (!requestBodySchema && paramSchema) {
-      return merge(paramSchema, {});
+      return { ...paramSchema };
     }
 
     // Case 3: Both schemas exist - merge them
@@ -382,7 +382,7 @@ export class ExtendedOperation {
         combinedSchema.properties ? Object.keys(combinedSchema.properties).join(', ') : 'none',
       );
 
-      return merge(combinedSchema, {});
+      return { ...combinedSchema };
     }
 
     // No schemas found

@@ -1,15 +1,16 @@
 import type { LogLayer } from 'loglayer';
 import type Oas from 'oas';
-import type { Operation } from 'oas/operation';
 import { parseTemplate } from 'url-template';
 
 import { bucketArgs, createSearchParams } from './request-utils.ts';
-import { getBaseUrl  } from './url-utils.ts';
-import type {OasRequestArgs} from './url-utils.ts';
+import type { BucketedArgs } from './request-utils.ts';
+import { getBaseUrl } from './url-utils.ts';
+import type { OasRequestArgs } from './url-utils.ts';
+import type { PathOperation } from '../parameter-mapper.ts';
 
 /**
  * Builds a standard Request object from OpenAPI operation and arguments.
- * 
+ *
  * @param app - Application context with logging capabilities
  * @param spec - OpenAPI specification
  * @param op - Operation to build request for
@@ -19,7 +20,7 @@ import type {OasRequestArgs} from './url-utils.ts';
 export function buildRequest(
   app: { log: LogLayer },
   spec: Oas,
-  op: Operation,
+  op: PathOperation,
   args: OasRequestArgs,
 ): Request {
   const { init, url } = buildRequestInit(app, spec, op, args);
@@ -29,7 +30,7 @@ export function buildRequest(
 /**
  * Builds RequestInit and URL objects for a Request from OpenAPI operation and arguments.
  * This is useful when you need more control over the request creation process.
- * 
+ *
  * @param app - Application context with logging capabilities
  * @param spec - OpenAPI specification
  * @param op - Operation to build request for
@@ -37,98 +38,34 @@ export function buildRequest(
  * @returns Object containing RequestInit and URL objects
  */
 export function buildRequestInit(
-  app: { log: LogLayer },
+  { log }: { log: LogLayer },
   spec: Oas,
-  op: Operation,
+  op: PathOperation,
   args: OasRequestArgs,
 ): { init: RequestInit; url: URL } {
-  // Create an adapter that implements our PathOperation interface
-  const pathOp = {
-    method: op.method,
-    path: op.path,
-    api: op.api,
-    getParameters: () => op.getParameters(),
-    hasRequestBody: () => op.hasRequestBody(),
-    getContentType: () => op.getContentType(),
-    getOperationId: () => op.getOperationId(),
-    getSummary: () => op.getSummary(),
-    getDescription: () => op.getDescription(),
-    getParametersAsJSONSchema: (options?: { mergeIntoBodyAndMetadata?: boolean }) => {
-      // Convert the SchemaWrapper[] to our expected format with 'in' property
-      return op.getParametersAsJSONSchema(options).map(schema => {
-        // Type-safe way to handle the schema object
-        const schemaObj = schema as unknown as { in?: string; schema: unknown };
-        return {
-          in: schemaObj.in ?? 'query', // Default to query if missing, using nullish coalescing
-          schema: schemaObj.schema
-        };
-      });
-    },
-    getResponseAsJSONSchema: (options?: { format?: string }) => {
-      // Handle the options object safely
-      // The OAS library appears to require at least one argument
-      return op.getResponseAsJSONSchema(options?.format ?? '200');
-    },
-    isJson: () => op.isJson(),
-    isFormUrlEncoded: () => op.isFormUrlEncoded(),
-  };
+  const bucketed = bucketArgs(op, args);
 
-  const harData = bucketArgs(pathOp, args);
-
-  app.log.debug('Calling operation with HAR Data', JSON.stringify(harData, null, 2));
+  log.debug('Calling operation with HAR Data', JSON.stringify(bucketed, null, 2));
 
   // Extract the base URL from the OAS specification
-  const baseUrl = getBaseUrl(spec, 'https://api.example.com');
+  const baseUrl = getBaseUrl(spec);
 
   // Log what we were able to find
-  app.log.debug(`Base URL resolution result: ${baseUrl || '(empty)'}`);
+  log.debug(`Base URL resolution result: ${baseUrl || '(empty)'}`);
 
   // Extract the path from the operation
   const path = typeof op.path === 'string' ? op.path : '';
-  let url: URL | null = null;
   const template = parseTemplate(path);
-  const pathParams = harData.path ?? {};
-  const expandedPath = template.expand(
-    Object.fromEntries(Object.entries(pathParams).map(([k, v]) => [k, String(v)])),
-  );
-  const baseURL = getBaseUrl(spec, 'https://api.example.com');
-  url = new URL(`${baseURL}${expandedPath}`);
+  const url = new URL(template.expand(bucketed.path), baseUrl);
 
   // Add query parameters
-  if (harData.query && Object.keys(harData.query).length > 0) {
-    createSearchParams(harData.query, url.searchParams);
+  if (Object.keys(bucketed.query).length > 0) {
+    createSearchParams(bucketed.query, url.searchParams);
   }
 
-  app.log.debug('Initial URL constructed', JSON.stringify({ baseUrl, path, url }));
+  log.debug('Initial URL constructed', JSON.stringify({ baseUrl, path, url }));
 
-  let requestBody: string | FormData | undefined;
-  let contentType: string | null = null;
-
-  // Handle request body
-  if (harData.body !== undefined) {
-    // If body is provided directly as a string
-    if (typeof harData.body === 'string') {
-      requestBody = harData.body;
-    }
-    // If body is an object, convert to JSON if appropriate
-    else if (harData.body !== null && typeof harData.body === 'object') {
-      try {
-        requestBody = JSON.stringify(harData.body);
-        contentType = 'application/json';
-      } catch (jsonError) {
-        app.log.debug('Error stringifying JSON body', String(jsonError));
-      }
-    }
-  }
-  // Handle form data
-  else if (harData.formData) {
-    if (harData.formData instanceof URLSearchParams) {
-      requestBody = harData.formData.toString(); // Convert URLSearchParams to string for proper encoding
-    } else {
-      requestBody = harData.formData;
-    }
-    contentType = 'application/x-www-form-urlencoded';
-  }
+  const { body: requestBody, contentType } = getRequestBody(bucketed, { log });
 
   // Create the RequestInit object
   const init: RequestInit = {
@@ -143,4 +80,40 @@ export function buildRequestInit(
   }
 
   return { init, url };
+}
+
+function getRequestBody(
+  bucketed: BucketedArgs,
+  { log }: { log: LogLayer },
+): { body?: string | FormData; contentType?: string } {
+  // Handle request body
+  if (bucketed.body !== undefined) {
+    // If body is provided directly as a string
+    if (typeof bucketed.body === 'string') {
+      return { body: bucketed.body };
+    }
+    // If body is an object, convert to JSON if appropriate
+    else if (bucketed.body !== null && typeof bucketed.body === 'object') {
+      try {
+        const body = JSON.stringify(bucketed.body);
+        return { body, contentType: 'application/json' };
+      } catch (jsonError) {
+        log.debug('Error stringifying JSON body', String(jsonError));
+        throw jsonError;
+      }
+    }
+  }
+  // Handle form data
+  else if (bucketed.formData) {
+    if (bucketed.formData instanceof URLSearchParams) {
+      return {
+        body: bucketed.formData.toString(),
+        contentType: 'application/x-www-form-urlencoded',
+      };
+    } else {
+      return { body: bucketed.formData, contentType: 'application/x-www-form-urlencoded' };
+    }
+  }
+
+  return {};
 }

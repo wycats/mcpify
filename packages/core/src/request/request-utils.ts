@@ -1,27 +1,9 @@
 // We define our own PathOperation interface to avoid direct dependency on OAS implementation
 import type { z } from 'zod';
 
-// Define interfaces for operating with the OAS library
+import type { PathOperation } from '../parameter-mapper.ts';
 
-/**
- * Path operation interface for an OpenAPI operation
- */
-export interface PathOperation {
-  method: string;
-  path: string;
-  api: unknown;
-  getParameters(): { name: string; in: 'path' | 'query' | 'header' | 'cookie'; required?: boolean; schema?: unknown }[];
-  hasRequestBody(): boolean;
-  getContentType(): string | null;
-  // Additional methods needed to match the existing oas library
-  getOperationId(): string | null;
-  getSummary(): string | null;
-  getDescription(): string | null;
-  getParametersAsJSONSchema(options?: { mergeIntoBodyAndMetadata?: boolean }): { in: string; schema: unknown }[];
-  getResponseAsJSONSchema(options?: { format?: string }): unknown;
-  isJson(): boolean;
-  isFormUrlEncoded(): boolean;
-}
+// Define interfaces for operating with the OAS library
 
 /**
  * Server variable interface for OpenAPI server variables
@@ -73,8 +55,8 @@ export interface BucketedArgs {
   cookie?: Record<string, string>;
   formData?: FormData | URLSearchParams | null; // For form-urlencoded or multipart form data
   header?: Record<string, string>;
-  path?: Record<string, string>;
-  query?: Record<string, JsonValue>;
+  path: Record<string, string>;
+  query: Record<string, JsonValue>;
   server?: {
     selected: number;
     variables?: ServerVariable;
@@ -88,7 +70,7 @@ export type OasRequestArgs = z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>;
 
 /**
  * Organizes operation arguments into their appropriate locations (path, query, header, etc.)
- * 
+ *
  * @param operation - OpenAPI operation
  * @param args - Arguments to organize
  * @returns Organized arguments by location
@@ -100,6 +82,8 @@ export function bucketArgs(operation: PathOperation, args: JsonObject): Bucketed
     header: {},
     cookie: {},
     formData: null as FormData | URLSearchParams | null,
+    // Directly include body from args if present
+    body: args['body'],
   };
 
   const consumed = new Set<string>();
@@ -141,7 +125,7 @@ export function bucketArgs(operation: PathOperation, args: JsonObject): Bucketed
 
 /**
  * Creates URLSearchParams from a record of key-value pairs
- * 
+ *
  * @param input - Object containing parameter values
  * @param params - Optional existing URLSearchParams to add to
  * @returns URLSearchParams object with all parameters
@@ -158,7 +142,7 @@ export function createSearchParams(
 
 /**
  * Creates form data from a record of key-value pairs
- * 
+ *
  * @param input - Object containing form field values
  * @returns URLSearchParams object with form data
  */
@@ -172,12 +156,16 @@ export function createFormData(input: Record<string, JsonValue>): URLSearchParam
 
 /**
  * Appends data to form data or search params, handling nested objects and arrays
- * 
+ *
  * @param formData - FormData or URLSearchParams to append to
  * @param key - Key for the parameter
  * @param input - Value to append
  */
-export function appendData(formData: FormData | URLSearchParams, key: string, input: JsonValue): void {
+export function appendData(
+  formData: FormData | URLSearchParams,
+  key: string,
+  input: JsonValue,
+): void {
   switch (typeof input) {
     case 'string':
     case 'number':

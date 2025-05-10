@@ -17,13 +17,3 @@ export type TemplateInterface = ReturnType<typeof urlParseTemplate>;
 export function parseTemplate(template: string): TemplateInterface {
   return urlParseTemplate(template);
 }
-
-/**
- * Deep merge utility function
- * @param object - Target object to merge into
- * @param defaults - Source object to merge from
- * @returns Merged object
- */
-export function merge<T>(object: T, defaults: Partial<T>): T {
-  return { ...object, ...defaults } as T;
-}
