@@ -7,7 +7,7 @@
 MCPify enables seamless integration between REST APIs and AI agents by dynamically translating OpenAPI endpoints into MCP tools. Unlike static code generators, MCPify creates a live proxy server that:
 
 1. **Parses** OpenAPI specs from local files or URLs
-2. **Dynamically maps** REST endpoints to MCP tools with appropriate schemas 
+2. **Dynamically maps** REST endpoints to MCP tools with appropriate schemas
 3. **Proxies** requests between the MCP client and the underlying REST API
 4. **Handles** conversions between MCP and REST formats in real-time
 
@@ -15,55 +15,35 @@ This allows AI agents to use existing REST APIs as if they were native MCP tools
 
 ## ✨ Features
 
-| Status | Feature                                                         |
-| ------ | --------------------------------------------------------------- |
-| 🟢     | 📄 Parse OpenAPI 3.0+ Specification documents (JSON or YAML)    |
-| 🟢     | 🔄 Convert REST endpoints to MCP tools with appropriate schemas |
-| 🟢     | 📎 Map HTTP methods to appropriate MCP tool annotations         |
-| 🟢     | 🔌 Proxy requests between MCP clients and REST APIs             |
-| 🟡     | 🔍 Generate RESTful MCP resources from OpenAPI endpoints        |
-| 🟡     | 🔐 Support for authentication methods defined in the OAS        |
-| 🟠     | 📢 Handle binary response types (images, files, etc.)           |
-| 🟠     | ⏰ Support for webhooks and asynchronous operations             |
+- 📄 Parse OpenAPI 2.0+ specs (JSON, YAML)
+- 🔄 Dynamic tool & resource generation
+- 🌐 Base URL overrides and custom headers
+- 🔍 Response validation & schema conversion
+- 🛡️ Authentication forwarding
+- 🐞 Web-based debug UI at `/debug`
 
 ## 📦 Installation
 
 ```bash
-cargo install mcpify
+npm install -g mcpify
+# Or via npx without install
+npx mcpify --spec path/to/openapi.yaml
 ```
 
-## 🚀 Usage
+## 🚀 CLI Usage
 
 ```bash
-# Start a proxy server using a local OpenAPI specification
+# Start proxy with local spec
 mcpify --spec api-spec.yaml --base-url https://api.example.com
 
-# Start a proxy server using a remote OpenAPI specification
-mcpify --spec https://api.example.com/openapi.json
+# Custom port and log level
+mcpify --spec api-spec.yaml --port 9000 --log-level debug
 
-# Specify MCP server port (default: 8080)
-mcpify --spec api-spec.yaml --port 9000
+# Use stdio transport
+mcpify --spec api-spec.yaml --transport stdio
 
-# Enable debug logging for request/response inspection
-mcpify --spec api-spec.yaml --log-level debug
-```
-
-**Example output:**
-
-```
-[INFO] Loading OpenAPI specification from api-spec.yaml
-[INFO] Validating OpenAPI document
-[INFO] Found 8 endpoints to convert
-[INFO] Converting GET /users → query tool "listUsers"
-[INFO] Converting GET /users/{id} → query tool "getUserById"
-[INFO] Converting POST /users → mutation tool "createUser"
-[INFO] Converting PUT /users/{id} → mutation tool "updateUser"
-[INFO] Converting DELETE /users/{id} → mutation tool "deleteUser"
-[INFO] Converting GET /products → query tool "listProducts"
-[INFO] Converting GET /products/{id} → query tool "getProductById"
-[INFO] Converting POST /orders → mutation tool "createOrder"
-[INFO] MCP proxy server started at http://localhost:8080
-[INFO] MCP debugging interface available at http://localhost:8080/debug
+# Add custom headers
+mcpify --spec api-spec.yaml --header "Authorization: Bearer TOKEN"
 ```
 
 ## 🖼 Architecture
@@ -72,7 +52,7 @@ MCPify follows a real-time proxy architecture:
 
 1. **Parser** 📄: Loads and validates the OpenAPI specification
 2. **Mapper** 🗺️: Converts API endpoints to MCP tools and resources dynamically
-3. **Proxy** 🔄: Routes MCP tool calls to the appropriate REST endpoints 
+3. **Proxy** 🔄: Routes MCP tool calls to the appropriate REST endpoints
 4. **Server** 🔌: Exposes the MCP interface to clients
 
 ## 🔄 Conversion Rules
@@ -162,13 +142,13 @@ Configure custom behavior using the `x-mcpify` extension at different levels in 
 x-mcpify:
   templates:
     default:
-      description: "{summary} ({description})"
+      description: '{summary} ({description})'
   proxy:
-    timeout: 30  # Request timeout in seconds
-    retries: 3   # Number of retry attempts
+    timeout: 30 # Request timeout in seconds
+    retries: 3 # Number of retry attempts
     caching:
       enabled: true
-      ttl: 300    # Cache TTL in seconds
+      ttl: 300 # Cache TTL in seconds
 
 # Path level configuration
 paths:
@@ -176,17 +156,17 @@ paths:
     x-mcpify:
       include: [tools, resources]
       proxy:
-        timeout: 60  # Override timeout for this path
+        timeout: 60 # Override timeout for this path
 
   # Operation level configuration
   /users/{id}:
     get:
       x-mcpify:
-        operationId: "user_by_id" # Override name
+        operationId: 'user_by_id' # Override name
         annotations: # Custom annotations
           readOnlyHint: false # Override default
         proxy:
-          caching:  # Operation-specific cache settings
+          caching: # Operation-specific cache settings
             ttl: 600
 ```
 
@@ -216,7 +196,7 @@ paths:
   /users/{id}:
     get:
       x-mcpify:
-        map: ["tool"] # Only create tool, not resource
+        map: ['tool'] # Only create tool, not resource
 ```
 
 ## 📚 Examples
@@ -244,7 +224,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: '#/components/schemas/User'
 ```
 
 **Dynamically Generated MCP Tool:**
