@@ -128,3 +128,36 @@ Strict adherence to these principles:
 - NEVER use `@ts-expect-error` or `@ts-ignore` directives unless explicitly instructed
 - If you encounter a situation where such directives seem necessary, propose alternative solutions that maintain type safety and code quality instead
 - When instructed to use these directives, always include a detailed comment explaining exactly why the directive is necessary
+
+## Style Preferences
+
+### Private Members
+
+- Prefer using the native TypeScript `#` syntax for private members instead of the `private` keyword
+- Do not add `@private` JSDoc annotations on members already marked with `#` as this is redundant
+- Example: `#privateField` instead of `private privateField`
+
+### Field Modifiers
+
+- Prefer `readonly` field declarations when appropriate
+- Combine with private syntax when needed: `readonly #field`
+- Avoid using `private`, `public`, or `protected` keywords where possible
+- Default to implicit public access without annotation
+
+### JSDoc Style
+
+- Use JSDoc comments for public methods and properties
+- Include parameter descriptions and return value descriptions
+- Include examples for complex methods
+- Omit redundant information that is already evident from TypeScript types
+- Skip access modifiers in JSDoc that are already indicated by TypeScript syntax
+- Carefully document the "why".
+- Document the _behavior_ of the API, not internal implementation details.
+
+### Type Declarations
+
+- Prefer `interface` for object type declarations
+- Use `Record<K, V>` for dictionary-like structures
+- Use `type` for unions, intersections, and aliases of primitive types
+
+These guidelines promote concise, idiomatic TypeScript that leverages the language's built-in features for access control and immutability without redundant annotations.

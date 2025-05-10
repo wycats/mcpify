@@ -49,16 +49,18 @@ describe('Request Body Schema Handling', () => {
     ];
 
     // Create request body if schema is provided
-    const requestBody: OpenAPIV3.RequestBodyObject | undefined = requestBodySchema
+    const requestBody: Pick<OpenAPIV3.OperationObject, 'requestBody'> = requestBodySchema
       ? {
-          required: true,
-          content: {
-            [contentType]: {
-              schema: convertZodToOpenAPI(requestBodySchema),
+          requestBody: {
+            required: true,
+            content: {
+              [contentType]: {
+                schema: convertZodToOpenAPI(requestBodySchema),
+              },
             },
           },
         }
-      : undefined;
+      : {};
 
     // Create paths object with the specified operation
     const paths: Record<string, Record<string, OperationObject>> = {
@@ -66,7 +68,7 @@ describe('Request Body Schema Handling', () => {
         [method]: {
           operationId: `test${method}Operation`,
           parameters,
-          requestBody,
+          ...requestBody,
           responses: {
             '200': {
               description: 'Success response',

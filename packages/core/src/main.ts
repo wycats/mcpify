@@ -4,19 +4,21 @@
 
 import { randomUUID } from 'crypto';
 import { Console as NodeConsole } from 'node:console';
+import type { UUID } from 'node:crypto';
 
 import { Command, Option } from '@commander-js/extra-typings';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import express from 'express';
 import type { Request, Response } from 'express';
 import { ConsoleTransport, LogLayer } from 'loglayer';
-import type { LogLevel } from 'loglayer';
+import type { LogLayerTransport, LogLevel } from 'loglayer';
 
 // Internal dependencies
+
 import { OpenApiSpec } from './openapi.ts';
-import type Oas from 'oas';
 
 // Define the version from package.json
 const version = '0.1.0';
@@ -28,17 +30,22 @@ export interface AppOptions {
 }
 
 export class App {
+  static default(options: AppOptions): App {
+    return new App({
+      log: new ConsoleTransport({
+        logger: new NodeConsole(process.stderr, process.stderr),
+
+        level: options.logLevel,
+      }),
+    });
+  }
+
   readonly #log: LogLayer;
-  readonly #spec: Oas;
 
-  constructor(spec: Oas, options: AppOptions) {
-      this.#log = new LogLayer({
-        transport: new ConsoleTransport({
-          logger: new NodeConsole(process.stderr, process.stderr),
-
-          level: options.logLevel,
-        }),
-      });
+  constructor(options: { log: LogLayerTransport }) {
+    this.#log = new LogLayer({
+      transport: options.log,
+    });
   }
 
   get log(): LogLayer {
@@ -46,12 +53,11 @@ export class App {
   }
 }
 
-export type Transport = 'http' | 'stdio';
+export type TransportType = 'http' | 'stdio';
 
 export interface ServerOptions {
   app: App;
   spec: string;
-  baseUrl?: string;
   port: number;
   headers: Record<string, string>;
   transport: 'http' | 'stdio';
@@ -66,7 +72,6 @@ class MCPify {
   static async load(options: ServerOptions): Promise<MCPify> {
     const spec = await OpenApiSpec.load(options.spec, {
       app: options.app,
-      baseUrl: options.baseUrl,
     });
 
     return new MCPify({ ...options, spec });
@@ -112,11 +117,11 @@ class MCPify {
 
           // Create a transport with session management
           const transport = new StreamableHTTPServerTransport({
-            sessionIdGenerator: () => randomUUID(),
+            sessionIdGenerator: (): UUID => randomUUID(),
           });
 
           // Connect server to transport
-          await this.#server.connect(transport);
+          await this.#server.connect(transport as Transport);
 
           // Set up routes for streamable HTTP
           app.post('/mcp', (req: Request, res: Response) => {
@@ -195,7 +200,7 @@ const program = new Command()
   )
   .action(async (options) => {
     // Validate required options with proper typing
-    const app = new App({
+    const app = App.default({
       logLevel: options.logLevel,
     });
 
@@ -204,7 +209,6 @@ const program = new Command()
       app,
       transport: options.transport,
       spec: options.spec,
-      baseUrl: options.baseUrl,
       port: options.port,
       headers: options.header,
     });

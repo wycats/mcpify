@@ -87,7 +87,7 @@ MCPify follows a real-time proxy architecture:
 | 🟢     | `deprecated` flag         | `annotations.deprecated`   | Direct mapping                                  |
 | 🟢     | HTTP method               | Tool annotations           | Maps to `readOnlyHint`, `destructiveHint`, etc. |
 | 🟡     | `tags`                    | `annotations.tags`         | Used for categorization                         |
-| 🟡     | `responses` schemas       | Tool result handling       | For typed result processing                     |
+| 🟢     | `responses` schemas       | Tool result handling       | Complete schema extraction for validation and typing |
 | 🟠     | `security`                | Authentication             | Security scheme mapping                         |
 | 🟠     | `examples`                | Usage examples             | Added to tool descriptions                      |
 | 🔴     | Related endpoints         | `annotations.relatedTools` | For complex workflows                           |
@@ -115,6 +115,16 @@ Endpoints are automatically converted to MCP resources when:
 
 > [!IMPORTANT]
 > MCPify handles the differences between OpenAPI schemas and MCP's JSON Schema requirements.
+
+### 📤 Response Schema Handling
+
+MCPify provides comprehensive response schema handling:
+
+- **Status Code Extraction**: Retrieves schemas for specific HTTP status codes (200, 404, etc.)
+- **Default Fallbacks**: Uses 'default' response schema when specific status code isn't found
+- **Zod Integration**: Converts JSON schemas to Zod schemas for runtime validation
+- **Content Type Support**: Handles various content types, preferring application/json
+- **Caching**: Efficiently caches schemas for better performance
 
 ### 🔧 Schema Differences
 

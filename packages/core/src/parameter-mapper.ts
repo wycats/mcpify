@@ -1,17 +1,17 @@
 import type { CallToolResult, ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
-import { merge } from 'allof-merge';
 import type { LogLayer } from 'loglayer';
 import type Oas from 'oas';
 import type { Operation } from 'oas/operation';
-import type { ServerVariable } from 'oas/types';
 import type { OpenAPIV3 } from 'openapi-types';
-import { parseTemplate } from 'url-template';
-import type { z } from 'zod';
-import { jsonSchemaObjectToZodRawShape } from 'zod-from-json-schema';
+import { z } from 'zod';
 import type { JSONSchema } from 'zod-from-json-schema';
+import { jsonSchemaObjectToZodRawShape } from 'zod-from-json-schema';
 
-import { HttpVerb } from './safety.ts';
+import type { ServerVariable } from './request/index.ts';
+import { parseTemplate, merge } from './request/index.ts';
 import type { ChangeSafety } from './safety.ts';
+import { HttpVerb } from './safety.ts';
+import { ResponseSchemaExtractor } from './schema/response-schema.ts';
 
 export type PathOperations = ReturnType<Oas['getPaths']>[string];
 export type PathOperation = PathOperations[keyof PathOperations];
@@ -27,6 +27,8 @@ export interface OperationExtensions {
 type Deref<T> = T & Exclude<T, { $ref: any }>;
 
 export class ExtendedOperation {
+  // Response schema extractor for handling response schemas
+  readonly #responseSchemaExtractor: ResponseSchemaExtractor;
   static from(
     operation: PathOperation,
     extensions: OperationExtensions,
@@ -53,10 +55,26 @@ export class ExtendedOperation {
     this.#verb = verb;
     this.#operation = operation;
     this.#extensions = extensions;
+    // Initialize the response schema extractor
+    // TypeScript needs help understanding that our operation object has the required properties
+    // We use a type assertion to avoid spreading class instances which would lose prototypes
+    this.#responseSchemaExtractor = new ResponseSchemaExtractor(
+      // Cast to unknown first to avoid direct type assertion errors
+      operation as unknown as Oas & { path: string; method: string },
+      app.log
+    );
   }
 
   get #log(): LogLayer {
     return this.#app.log;
+  }
+  
+  /**
+   * Returns whether this operation has any parameters
+   * @returns true if the operation has any parameters (path, query, header, etc.)
+   */
+  get hasParameters(): boolean {
+    return this.oas.getParameters().length > 0;
   }
 
   isIgnored(tool: 'resource' | 'tool'): boolean {
@@ -144,6 +162,129 @@ export class ExtendedOperation {
     return format !== 'binary';
   }
 
+  /**
+   * Get the parameters schema as a Zod raw shape for validation
+   * 
+   * @returns A Zod raw shape or null if no parameters exist
+   */
+  get parameters(): z.ZodRawShape | null {
+    // Get parameter schemas
+    const params = this.oas.getParametersAsJSONSchema({
+      mergeIntoBodyAndMetadata: false, // Handle merging manually for proper combination
+    }) as ReturnType<PathOperation['getParametersAsJSONSchema']> | null;
+
+    // Get request body schema through our helper method
+    const requestBodySchema = this.#extractRequestBodySchema();
+
+    // Both params and request body exist - create combined schema
+    if (params?.[0]?.schema && requestBodySchema) {
+      // Combine parameters and request body schemas
+      const combinedSchema: JSONSchema = {
+        type: 'object',
+        properties: {
+          ...((params[0].schema as JSONSchema).properties ?? {}),
+          ...(requestBodySchema.properties ?? {}),
+        },
+        required: [
+          ...((params[0].schema as JSONSchema).required ?? []),
+          ...(requestBodySchema.required ?? []),
+        ],
+      };
+
+      // Convert the combined schema to Zod raw shape
+      return jsonSchemaObjectToZodRawShape(combinedSchema);
+    }
+
+    // Only params exist
+    if (params?.[0]?.schema && !requestBodySchema) {
+      return jsonSchemaObjectToZodRawShape(params[0].schema as JSONSchema);
+    }
+
+    // Only request body exists
+    if (requestBodySchema && !params?.[0]?.schema) {
+      return jsonSchemaObjectToZodRawShape(requestBodySchema);
+    }
+
+    // No schemas found
+    return null;
+  }
+
+  /**
+   * Extract request body schema from the OpenAPI operation.
+   * Uses a careful, safe approach to extracting nested properties.
+   */
+  #extractRequestBodySchema(): JSONSchema | null {
+    if (!this.oas.hasRequestBody()) {
+      return null;
+    }
+
+    try {
+      // Default to application/json if no content type is specified
+      // The OAS library should always return a string (possibly empty) for getContentType() 
+      const contentType = this.oas.getContentType() || 'application/json';
+
+      // Since OAS doesn't expose requestBody schema directly, we need to access the
+      // underlying OpenAPI specification in a type-safe way
+
+      // Define TypeScript interfaces to preserve type safety
+      type ContentObject = Record<string, { schema?: JSONSchema }>;
+
+      interface RequestBodyObject {
+        content?: ContentObject;
+      }
+
+      type PathObject = Record<string, { requestBody?: RequestBodyObject }>;
+
+      type PathsObject = Record<string, PathObject>;
+
+      interface ApiObject {
+        paths?: PathsObject;
+      }
+
+      // Isolate the any conversion to a single constrained location with appropriate comment
+      // We need to access the underlying API object which is not exposed through the public interface
+
+      const rawOas = this.oas;
+      // Type cast to our defined interface after extraction for type safety
+      const api = rawOas.api as ApiObject;
+
+      // Function to safely retrieve schema using properly typed structures
+      const getSchema = (cType: string): JSONSchema | null => {
+        try {
+          // Navigate the structure with type safety
+          const path = api.paths?.[this.oas.path];
+          const method = path?.[this.oas.method];
+          const requestBody = method?.requestBody;
+          const content = requestBody?.content;
+          const contentTypeSchema = content?.[cType]?.schema;
+
+          return contentTypeSchema ?? null;
+        } catch {
+          return null;
+        }
+      };
+
+      // Try the primary content type first
+      const schema = getSchema(contentType);
+      if (schema) {
+        this.#log.debug('Found request body schema for content type', contentType);
+        return schema;
+      }
+
+      // Fall back to application/json if available
+      const jsonSchema = contentType !== 'application/json' ? getSchema('application/json') : null;
+      if (jsonSchema) {
+        this.#log.debug('Using application/json schema as fallback');
+        return jsonSchema;
+      }
+
+      return null;
+    } catch (error) {
+      this.#log.error('Error extracting request body schema', String(error));
+      return null;
+    }
+  }
+
   get jsonSchema(): JSONSchema | null {
     // For debugging our implementation
     this.#log.debug('Operation:', this.oas.method.toUpperCase(), this.oas.path);
@@ -195,7 +336,7 @@ export class ExtendedOperation {
         ? convertToJSONSchema({
             type: 'object',
             properties: paramProperties,
-            required: requiredParams.length > 0 ? requiredParams : undefined,
+            required: requiredParams,
           })
         : null;
 
@@ -221,7 +362,7 @@ export class ExtendedOperation {
 
     // Case 2: Only parameter schema exists
     if (!requestBodySchema && paramSchema) {
-      return merge(paramSchema) as JSONSchema;
+      return merge(paramSchema, {});
     }
 
     // Case 3: Both schemas exist - merge them
@@ -241,7 +382,7 @@ export class ExtendedOperation {
         combinedSchema.properties ? Object.keys(combinedSchema.properties).join(', ') : 'none',
       );
 
-      return merge(combinedSchema) as JSONSchema;
+      return merge(combinedSchema, {});
     }
 
     // No schemas found
@@ -249,132 +390,101 @@ export class ExtendedOperation {
   }
 
   /**
-   * Extract request body schema from the OpenAPI operation.
-   * Uses a careful, safe approach to extracting nested properties.
+   * Get a list of all response status codes defined in the API operation
+   *
+   * This method retrieves the list of status codes from the OpenAPI specification.
+   * It is used internally to collect available response schemas.
    */
-  #extractRequestBodySchema(): JSONSchema | null {
-    if (!this.oas.hasRequestBody()) {
-      return null;
-    }
+  #getResponseStatusCodes(): string[] {
+    return this.#responseSchemaExtractor.getStatusCodes();
+  }
 
-    try {
-      // Default to application/json if no content type is specified
-      // The OAS library never returns null/undefined for getContentType(), but we use
-      // the nullish coalescing operator for extra safety
-      const contentType = this.oas.getContentType() || 'application/json';
+  /**
+   * Get response schema for a specific status code.
+   * Will try to find a schema for the specified status code, falling back to 'default' if not found.
+   *
+   * @param statusCode - HTTP status code (e.g. '200', '404', 'default')
+   * @returns JSON Schema for the response
+   * @example
+   * const schema = operation.getResponseSchema('200');
+   * // Use the schema for validation or documentation
+   */
+  getResponseSchema(statusCode: string): JSONSchema | null {
+    return this.#responseSchemaExtractor.getSchema(statusCode);
+  }
 
-      // Since OAS doesn't expose requestBody schema directly, we need to access the
-      // underlying OpenAPI specification in a type-safe way
+  /**
+   * Get all response schemas defined for this operation
+   *
+   * This getter returns all available response schemas indexed by their status codes.
+   * The result is cached for better performance on subsequent calls.
+   *
+   * @returns Record of status codes to JSON Schema objects
+   *
+   * @example
+   * ```typescript
+   * const schemas = operation.responseSchemas;
+   * // Access individual schemas by status code
+   * const okSchema = schemas['200'];
+   * const errorSchema = schemas['400'];
+   * ```
+   */
+  get responseSchemas(): Record<string, JSONSchema> {
+    const result: Record<string, JSONSchema> = {};
 
-      // Define TypeScript interfaces to preserve type safety
-      interface ContentObject {
-        [contentType: string]: { schema?: JSONSchema };
-      }
+    // Extract response status codes from the OpenAPI spec
+    const statusCodes = this.#getResponseStatusCodes();
 
-      interface RequestBodyObject {
-        content?: ContentObject;
-      }
-
-      interface PathObject {
-        [method: string]: { requestBody?: RequestBodyObject };
-      }
-
-      interface PathsObject {
-        [path: string]: PathObject;
-      }
-
-      interface ApiObject {
-        paths?: PathsObject;
-      }
-
-      // Isolate the any conversion to a single constrained location with appropriate comment
-      // We need to access the underlying API object which is not exposed through the public interface
-
-      const rawOas = this.oas;
-      // Type cast to our defined interface after extraction for type safety
-      const api = rawOas.api as ApiObject;
-
-      // Function to safely retrieve schema using properly typed structures
-      const getSchema = (cType: string): JSONSchema | null => {
-        try {
-          // Navigate the structure with type safety
-          const path = api.paths?.[this.oas.path];
-          const method = path?.[this.oas.method];
-          const requestBody = method?.requestBody;
-          const content = requestBody?.content;
-          const contentTypeSchema = content?.[cType]?.schema;
-
-          return contentTypeSchema ?? null;
-        } catch {
-          return null;
-        }
-      };
-
-      // Try the primary content type first
-      const schema = getSchema(contentType);
+    // Get schema for each status code
+    for (const code of statusCodes) {
+      const schema = this.getResponseSchema(code);
       if (schema) {
-        this.#log.debug('Found request body schema for content type', contentType);
-        return schema;
+        result[code] = schema;
       }
-
-      // Fall back to application/json if available
-      const jsonSchema = contentType !== 'application/json' ? getSchema('application/json') : null;
-      if (jsonSchema) {
-        this.#log.debug('Using application/json schema as fallback');
-        return jsonSchema;
-      }
-
-      return null;
-    } catch (error) {
-      this.#log.error('Error extracting request body schema', String(error));
-      return null;
     }
+
+    return result;
   }
 
-  get hasParameters(): boolean {
-    return this.oas.getParameters().length > 0;
-  }
+  /**
+   * Get all response schemas converted to Zod schemas for runtime validation
+   *
+   * This getter converts all available JSON Schemas to Zod schemas for runtime
+   * type validation. The result is cached for better performance.
+   *
+   * @returns Record of status codes to Zod schema objects
+   *
+   * @example
+   * ```typescript
+   * const schemas = operation.zodResponseSchemas;
+   *
+   * // Validate a response against the schema
+   * try {
+   *   const validatedData = schemas['200'].parse(responseData);
+   * } catch (error) {
+   *   console.error('Response validation failed:', error);
+   * }
+   * ```
+   */
+  get zodResponseSchemas(): Record<string, z.ZodObject<z.ZodRawShape>> {
+    const schemas = this.responseSchemas;
+    const result: Record<string, z.ZodObject<z.ZodRawShape>> = {};
 
-  get parameters(): z.ZodRawShape | null {
-    // Get parameter schemas
-    const params = this.oas.getParametersAsJSONSchema({
-      mergeIntoBodyAndMetadata: false, // We'll handle merging manually for proper combination
-    }) as ReturnType<PathOperation['getParametersAsJSONSchema']> | null;
-
-    // Get request body schema through our helper
-    const requestBodySchema = this.#extractRequestBodySchema();
-
-    // Both params and request body exist - create combined schema
-    if (params?.[0]?.schema && requestBodySchema) {
-      // Combine parameters and request body schemas
-      const combinedSchema: JSONSchema = {
-        type: 'object',
-        properties: {
-          ...((params[0].schema as JSONSchema).properties ?? {}),
-          ...(requestBodySchema.properties ?? {}),
-        },
-        required: [
-          ...((params[0].schema as JSONSchema).required ?? []),
-          ...(requestBodySchema.required ?? []),
-        ],
-      };
-
-      // Convert the combined schema to Zod raw shape
-      return jsonSchemaObjectToZodRawShape(combinedSchema);
+    // Convert each JSONSchema to a Zod schema
+    for (const [code, schema] of Object.entries(schemas)) {
+      try {
+        const zodSchema = z.object(jsonSchemaObjectToZodRawShape(schema));
+        result[code] = zodSchema;
+      } catch (error) {
+        this.#log.error(
+          `Error converting response schema for status ${code} to Zod:`,
+          String(error),
+        );
+        // Skip this schema if conversion fails
+      }
     }
 
-    // Only params exist
-    if (params?.[0]?.schema && !requestBodySchema) {
-      return jsonSchemaObjectToZodRawShape(params[0].schema as JSONSchema);
-    }
-
-    // Only request body exists
-    if (requestBodySchema && !params?.[0]?.schema) {
-      return jsonSchemaObjectToZodRawShape(requestBodySchema);
-    }
-
-    // No schemas found
-    return null;
+    return result;
   }
 
   buildRequest(spec: Oas, args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>): Request {
@@ -544,9 +654,7 @@ type JsonValue =
   | undefined
   | JsonValue[]
   | { [key: string]: JsonValue };
-interface JsonObject {
-  [key: string]: JsonValue;
-}
+type JsonObject = Record<string, JsonValue>;
 
 interface BucketedArgs {
   body?: JsonValue;
@@ -688,7 +796,7 @@ export function buildRequestInit(
   const init: RequestInit = {
     method: op.method.toUpperCase(), // Always use uppercase HTTP methods for standard compliance
     headers: new Headers(),
-    body: requestBody,
+    body: requestBody ?? null,
   };
 
   // Set content type if we have one
@@ -764,5 +872,5 @@ function assertDeref<T extends object>(obj: T): Deref<T> {
 }
 
 function convertToJSONSchema(obj: Deref<OpenAPIV3.SchemaObject>): JSONSchema {
-  return obj as JSONSchema;
+  return obj as unknown as JSONSchema;
 }

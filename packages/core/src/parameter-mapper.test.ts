@@ -1,17 +1,14 @@
-import { LogLayer, TestLoggingLibrary, TestTransport } from 'loglayer';
 import Oas from 'oas';
-import type { OperationObject, PathsObject } from 'oas/types';
 import type { OpenAPIV3 } from 'openapi-types';
 import qs from 'qs';
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
+import { testApp } from './integration.test.ts';
 import type { BucketLocation, PathOperation, OasRequestArgs } from './parameter-mapper.ts';
 import { buildRequest } from './parameter-mapper.ts';
 import type { Verb } from './utils.ts';
-
-type SchemaObject = OpenAPIV3.SchemaObject;
 
 function createOp(
   verb: Extract<Verb, 'get' | 'post' | 'put' | 'delete' | 'patch'>,
@@ -21,113 +18,101 @@ function createOp(
 ): {
   oas: Oas;
   op: PathOperation;
-  log: LogLayer;
-  testLog: TestLoggingLibrary;
   build: (args: OasRequestArgs) => Request;
 } {
-  const parameters = Object.entries(params).map(([name, location]) => ({ name, in: location }));
+  // Create parameters array from the provided params map
+  const parameters = Object.entries(params).map(([name, location]) => ({
+    name,
+    in: location,
+  })) as OpenAPIV3.ParameterObject[];
 
-  const bodySchema = body ? (zodToJsonSchema(body) as SchemaObject) : undefined;
   const contentType = options.contentType ?? 'application/json';
 
-  const test = new TestLoggingLibrary();
-  const log = new LogLayer({
-    transport: new TestTransport({
-      logger: test,
-    }),
-  });
-
-  const paths: Record<'/test/{id}', Partial<Record<Verb, OperationObject>>> = {
-    '/test/{id}': {
-      get: {
-        operationId: 'test',
-        parameters,
-        requestBody: body
-          ? {
-              content: {
-                [contentType]: {
-                  schema: bodySchema,
-                },
-              },
-            }
-          : undefined,
-        responses: {
-          200: {
-            description: '200',
-            content: {
-              'application/json': { schema: { type: 'object' } },
-            },
-          },
-        },
-      },
-      post: {
-        operationId: 'createTest',
-        parameters,
-        requestBody: body
-          ? {
-              content: {
-                [contentType]: { schema: bodySchema },
-              },
-            }
-          : undefined,
-        responses: {
-          200: {
-            description: '200',
-            content: {
-              'application/json': { schema: { type: 'object' } },
-            },
-          },
-        },
-      },
-    },
-  } satisfies PathsObject;
-
-  // Add additional verb methods
-  for (const method of ['head', 'options', 'put', 'delete', 'patch'] as const) {
-    paths['/test/{id}'][method] = {
-      operationId: `${method}Test`,
-      parameters,
-      requestBody: body
-        ? {
-            content: {
-              [contentType]: { schema: bodySchema },
-            },
-          }
-        : undefined,
-      responses: {
-        200: {
-          description: '200',
+  // Create a typed requestBody object
+  const requestBodyContent = body
+    ? {
+        requestBody: {
           content: {
-            'application/json': { schema: { type: 'object' } },
+            [contentType]: {
+              schema: zodToJsonSchema(body) as OpenAPIV3.SchemaObject,
+            },
           },
+        } as OpenAPIV3.RequestBodyObject,
+      }
+    : {};
+
+  const { app } = testApp();
+
+  // Create a standard response object
+  const standardResponse: Record<string, OpenAPIV3.ResponseObject> = {
+    '200': {
+      description: '200',
+      content: {
+        'application/json': {
+          schema: { type: 'object' } as OpenAPIV3.SchemaObject,
         },
       },
-    } satisfies OperationObject;
-  }
-
-  const oas = new Oas({
-    openapi: 'hello',
-    info: {
-      title: 'test',
-      version: '1.0.0',
     },
-    paths: paths as PathsObject,
-  });
-
-  const verbs: Record<Verb, PathOperation> = {
-    head: oas.getOperationById('headTest'),
-    options: oas.getOperationById('optionsTest'),
-    get: oas.getOperationById('test'),
-    post: oas.getOperationById('createTest'),
-    put: oas.getOperationById('putTest'),
-    delete: oas.getOperationById('deleteTest'),
-    patch: oas.getOperationById('patchTest'),
   };
 
-  const request = (args: OasRequestArgs): Request => buildRequest({ log }, oas, verbs[verb], args);
+  // Create paths object with non-null assertions for strict type safety
+  const pathItem: Record<string, OpenAPIV3.OperationObject> = {};
+  const pathsObj: Record<string, Record<string, OpenAPIV3.OperationObject>> = {
+    '/test/{id}': pathItem,
+  };
 
-  const op = verbs[verb];
-  return { oas, op, testLog: test, log, build: request };
+  // Create a mapping of all verb operations
+  const verbs: Partial<Record<Verb, OpenAPIV3.OperationObject>> = {};
+
+  // Add the main test operation with proper typing
+  pathItem[verb] = {
+    operationId: 'test',
+    parameters,
+    ...requestBodyContent,
+    responses: { ...standardResponse },
+  } as OpenAPIV3.OperationObject;
+
+  verbs[verb] = pathItem[verb];
+
+  // Add operations for remaining verbs
+  const supportedVerbs = ['get', 'post', 'put', 'delete', 'patch'] as const;
+
+  for (const method of supportedVerbs) {
+    if (method === verb) continue;
+
+    // Add operation with proper typing
+    pathItem[method] = {
+      operationId: `${method}Test`,
+      parameters,
+      ...requestBodyContent,
+      responses: { ...standardResponse },
+    } as OpenAPIV3.OperationObject;
+
+    verbs[method as Verb] = pathItem[method];
+  }
+
+  // Create the OAS object
+  const oas = new Oas({
+    openapi: '3.0.0',
+    info: {
+      title: 'Test API',
+      version: '1.0.0',
+    },
+    paths: pathsObj,
+  });
+
+  // Get the operation object from Oas API
+  const operation = oas.operation('/test/{id}', verb);
+
+  // Create a path operation that matches the expected interface
+  const op = operation as unknown as PathOperation;
+
+  // Create the request builder function with correct parameter order
+  const build = (args: OasRequestArgs): Request => {
+    return buildRequest(app, oas, operation, args);
+  };
+
+  return { oas, op, build };
 }
 
 describe('bucketArgs()', () => {

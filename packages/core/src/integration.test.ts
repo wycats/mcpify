@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
-import type { LogLayer } from 'loglayer';
+import { TestLoggingLibrary, TestTransport } from 'loglayer';
+import type { LogLevel } from 'loglayer';
 import Oas from 'oas';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { z } from 'zod';
@@ -9,37 +10,6 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 import { App } from './main.ts';
 import { OpenApiSpec } from './openapi.ts';
 import type { OpenApiSpecOptions } from './openapi.ts';
-
-interface LogMessage {
-  level: string;
-  message: string;
-  data?: unknown;
-}
-
-// Create a test implementation of LogLayer using dependency injection pattern
-class TestLogger implements Partial<LogLayer> {
-  #messages: LogMessage[] = [];
-
-  #push(level: string, message: string, data: unknown[]): void {
-    this.#messages.push({ level, message, data: data.length > 0 ? data : undefined });
-  }
-
-  debug(message: string, ...data: unknown[]): void {
-    this.#push('debug', message, data);
-  }
-
-  info(message: string, ...data: unknown[]): void {
-    this.#push('info', message, data);
-  }
-
-  warn(message: string, ...data: unknown[]): void {
-    this.#push('warn', message, data);
-  }
-
-  error(message: string, ...data: unknown[]): void {
-    this.#push('error', message, data);
-  }
-}
 
 // Define specific callback types for our test implementation to avoid using 'Function' type
 type ResourceCallbackFn = (uri: string, args: Record<string, unknown>) => Promise<unknown>;
@@ -271,13 +241,11 @@ describe('MCPify Integration', () => {
   };
 
   describe('End-to-end OpenAPI to MCP conversion', () => {
-    let testLogger: TestLogger;
     let testServer: TestMcpServer;
     let openApiSpec: OpenApiSpec;
     let oas: Oas;
 
     beforeEach(() => {
-      testLogger = new TestLogger();
       testServer = new TestMcpServer();
 
       // Create properly typed OpenAPI spec object and convert to Oas instance
@@ -286,24 +254,11 @@ describe('MCPify Integration', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       oas = new Oas(simpleOpenApiSpec as any);
 
-      // Create a simplified app object with just the log property needed for testing
-      // Since we're creating a proper test implementation instead of a mock,
-      // we can use it directly in our tests
-      // Create a proper Test implementation of App that satisfies the interface requirements
-      class TestApp extends App {
-        // Override the constructor to accept our test logger
-        constructor(testLogger: TestLogger) {
-          // We need to provide both spec and options to the App constructor
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          super(oas as any, { logLevel: 'info' });
-          // Replace the logger property with our test logger
-          Object.defineProperty(this, 'log', { value: testLogger });
-        }
-      }
+      const { app } = testApp();
 
       // Create options with a properly implemented App
       const options: OpenApiSpecOptions = {
-        app: new TestApp(testLogger),
+        app,
         baseUrl: 'https://api.example.com',
       };
 
@@ -400,3 +355,15 @@ describe('MCPify Integration', () => {
     });
   });
 });
+
+export type LogLevelString = keyof typeof LogLevel;
+
+export function testApp(): { app: App; test: TestLoggingLibrary } {
+  const test = new TestLoggingLibrary();
+  const log = new TestTransport({
+    logger: test,
+  });
+  const app = new App({ log });
+
+  return { app, test };
+}

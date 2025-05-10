@@ -51,6 +51,7 @@ export default [
       ...typescript.configs['recommended'].rules,
       ...typescript.configs['strict'].rules,
       ...typescript.configs['strict-type-checked'].rules,
+      ...typescript.configs['stylistic-type-checked'].rules,
 
       // Additional strict rules
       'no-var': 'error',
