@@ -10,6 +10,9 @@ Use the verbose flag to review changes and write an accurate commit message:
 git commit -v
 ```
 
+Once the editor is open, review the contents of the temporary `COMMIT_EDITMSG`,
+modify it to include a commit message, and close the editor.
+
 **Benefits:**
 
 - Shows a diff of all changes in your commit at the bottom of the editor
