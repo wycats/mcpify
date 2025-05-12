@@ -84,4 +84,52 @@ it('handles path parameters correctly', async () => {
    - Tests use descriptive names that serve as documentation
    - Test setup is minimal and directly related to the behavior being tested
 
+## No Mocks Policy
+
+The project strictly avoids using mocks in tests. Instead, we prefer real implementations with controlled inputs:
+
+```typescript
+// ❌ Avoid: Using mocks or spies
+it('processes data correctly', () => {
+  const mockService = { process: jest.fn().mockReturnValue('processed') };
+  const handler = new DataHandler(mockService);
+  
+  handler.handleData('input');
+  
+  expect(mockService.process).toHaveBeenCalledWith('input');
+});
+
+// ✅ Better: Using factory functions and real implementations
+it('processes data correctly', () => {
+  // Factory function creates a real implementation with controlled behavior
+  const { service, calls } = createTestService();
+  const handler = new DataHandler(service);
+  
+  const result = handler.handleData('input');
+  
+  expect(result).toBe('processed');
+  expect(calls).toEqual([{ method: 'process', args: ['input'] }]);
+});
+```
+
+### Why Avoid Mocks?
+
+1. **Brittle Tests**: Mocks create tight coupling to implementation details
+2. **False Positives**: Tests can pass even when the real implementation would fail
+3. **Poor Refactoring Support**: Changing implementation requires changing mocks
+4. **Obscured Intent**: Mocks focus on interactions rather than behavior
+
+### Preferred Alternatives
+
+1. **Factory Functions**: Create real implementations with instrumentation
+2. **In-Memory Services**: For databases, APIs, etc.
+3. **Dependency Injection**: Only when the code is already using an interface abstraction
+
+### Implementation Guidelines
+
+- Only use alternative implementations when the code already uses an interface abstraction
+- Even with interfaces, prefer creating realistic implementations over simplified test-specific versions
+- Do not create interfaces just for testing if they would require more than a few fields and methods
+- Always prefer building realistic versions of lower-level components over abstracting them behind interfaces
+
 > See [testing-advanced.md](testing-advanced.md) for information on dependency injection patterns and code quality requirements.
