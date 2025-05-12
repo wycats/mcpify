@@ -2,11 +2,12 @@ import type { LogLayer } from 'loglayer';
 import type Oas from 'oas';
 import { parseTemplate } from 'url-template';
 
+import type { PathOperation } from '../parameter-mapper.ts';
+
 import { bucketArgs, createSearchParams } from './request-utils.ts';
 import type { BucketedArgs } from './request-utils.ts';
 import { getBaseUrl } from './url-utils.ts';
 import type { OasRequestArgs } from './url-utils.ts';
-import type { PathOperation } from '../parameter-mapper.ts';
 
 /**
  * Builds a standard Request object from OpenAPI operation and arguments.

@@ -10,6 +10,10 @@ export default defineConfig({
     root,
     globals: true,
     environment: 'node',
+    setupFiles: [
+      './packages/core/src/test/log-matchers.ts',
+      `${root}/packages/core/src/test/setup-request-matcher.ts`
+    ],
     chaiConfig: {
       truncateThreshold: 0, // 0 = disable truncation completely
     },
@@ -21,7 +25,6 @@ export default defineConfig({
     },
     include: [`${root}/packages/*/src/**/*.test.ts`],
     includeSource: [`${root}/packages/*/src/**/*.ts`],
-    setupFiles: [`${root}/packages/core/src/test/setup-request-matcher.ts`],
     coverage: {
       provider: 'istanbul',
       reporter: ['text', 'json', 'html'],

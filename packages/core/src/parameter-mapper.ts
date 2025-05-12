@@ -27,8 +27,6 @@ export interface OperationExtensions {
 type Deref<T> = T & Exclude<T, { $ref: any }>;
 
 export class ExtendedOperation {
-  // Response schema extractor for handling response schemas
-  readonly #responseSchemaExtractor: ResponseSchemaExtractor;
   static from(
     operation: PathOperation,
     extensions: OperationExtensions,
@@ -44,8 +42,10 @@ export class ExtendedOperation {
   #verb: HttpVerb;
   #operation: PathOperation;
   #extensions: OperationExtensions;
+  // Response schema extractor for handling response schemas
+  readonly #responseSchemaExtractor: ResponseSchemaExtractor;
 
-  constructor(
+  private constructor(
     app: { log: LogLayer },
     verb: HttpVerb,
     operation: PathOperation,
@@ -58,11 +58,7 @@ export class ExtendedOperation {
     // Initialize the response schema extractor
     // TypeScript needs help understanding that our operation object has the required properties
     // We use a type assertion to avoid spreading class instances which would lose prototypes
-    this.#responseSchemaExtractor = new ResponseSchemaExtractor(
-      // Cast to unknown first to avoid direct type assertion errors
-      operation as unknown as Oas & { path: string; method: string },
-      app.log,
-    );
+    this.#responseSchemaExtractor = ResponseSchemaExtractor.fromOp(operation, app.log);
   }
 
   get #log(): LogLayer {

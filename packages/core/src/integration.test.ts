@@ -1,3 +1,5 @@
+// External imports
+import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import { TestLoggingLibrary, TestTransport } from 'loglayer';
@@ -287,6 +289,90 @@ describe('MCPify Integration', () => {
       for (const call of testServer.resourceCalls) {
         // Verify we have a callback function
         expect(typeof call.callback).toBe('function');
+      }
+
+      // Verify URIs for resources
+      const baseUrl = 'https://api.example.com';
+      // 'listPets' has a query parameter, so it should not be registered as a resource
+      // Only operations with exclusively path parameters can be resources
+      const getPetCall = testServer.resourceCalls.find((call) => call.id === 'getPetById');
+      expect(getPetCall).toBeDefined();
+      expect(getPetCall?.uri).toBeInstanceOf(ResourceTemplate);
+      
+      // Access the uriTemplate through the ResourceTemplate's getter
+      const resourceTemplate = getPetCall?.uri as ResourceTemplate;
+      const templatePattern = resourceTemplate.uriTemplate.toString();
+      expect(templatePattern).toBe(`${baseUrl}/pets/{petId}`);
+    });
+
+    it('should not register non-resource operations', () => {
+      // Call the createResources method
+      openApiSpec.createResources(testServer as unknown as McpServer);
+
+      // POST operations should not be registered as resources
+      const createPetCall = testServer.resourceCalls.find((call) => call.id === 'createPet');
+      expect(createPetCall).toBeUndefined();
+
+      // DELETE operations should not be registered as resources
+      const deletePetCall = testServer.resourceCalls.find((call) => call.id === 'deletePetById');
+      expect(deletePetCall).toBeUndefined();
+    });
+
+    it('should register only GET operations as resources', () => {
+      // Define a spec with various HTTP methods for the same path
+      const methodsSpec = {
+        openapi: '3.0.0',
+        info: { title: 'HTTP Methods API', version: '1.0.0' },
+        paths: {
+          '/items/{itemId}': {
+            get: { operationId: 'getItem', parameters: [{ name: 'itemId', in: 'path', required: true, schema: { type: 'string' } }] },
+            post: { operationId: 'createItem', parameters: [{ name: 'itemId', in: 'path', required: true, schema: { type: 'string' } }] },
+            put: { operationId: 'updateItem', parameters: [{ name: 'itemId', in: 'path', required: true, schema: { type: 'string' } }] },
+            patch: { operationId: 'patchItem', parameters: [{ name: 'itemId', in: 'path', required: true, schema: { type: 'string' } }] },
+            delete: { operationId: 'deleteItem', parameters: [{ name: 'itemId', in: 'path', required: true, schema: { type: 'string' } }] },
+          }
+        }
+      };
+
+      // Create a new TestMcpServer for this test
+      const methodsTestServer = new TestMcpServer();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const methodsOas = new Oas(methodsSpec as any);
+      const methodsOpenApiSpec = OpenApiSpec.from(methodsOas, { app: testApp().app });
+
+      // Call createResources
+      methodsOpenApiSpec.createResources(methodsTestServer as unknown as McpServer);
+
+      // Only GET should be registered as a resource
+      const operationIds = methodsTestServer.resourceCalls.map(call => call.id);
+      expect(operationIds).toContain('getItem');
+      expect(operationIds).not.toContain('createItem');
+      expect(operationIds).not.toContain('updateItem');
+      expect(operationIds).not.toContain('patchItem');
+      expect(operationIds).not.toContain('deleteItem');
+      expect(operationIds.length).toBe(1);
+    });
+
+    it('should register resource callbacks with the correct signature', () => {
+      // Call the createResources method
+      openApiSpec.createResources(testServer as unknown as McpServer);
+
+      // Find the getPetById resource
+      const getPetCall = testServer.resourceCalls.find((call) => call.id === 'getPetById');
+      expect(getPetCall).toBeDefined();
+
+      // Test that the callback is registered with the correct signature
+      expect(getPetCall?.callback).toBeDefined();
+      
+      // Since we've already verified getPetCall exists, we use an if guard
+      // for type narrowing following the project's style guidelines
+      if (getPetCall) {
+        const { callback } = getPetCall;
+        expect(typeof callback).toBe('function');
+        
+        // Verify the callback signature by examining its length
+        // ResourceCallbackFn should have 2 parameters (uri and args)
+        expect(callback.length).toBe(2);
       }
     });
 

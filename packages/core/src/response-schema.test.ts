@@ -115,7 +115,9 @@ describe('Response Schema Handling', () => {
     const extensions: OperationExtensions = {};
 
     // Create ExtendedOperation instance
-    const extendedOp = new ExtendedOperation({ log }, verb, operation, extensions);
+    const extendedOp = ExtendedOperation.from(operation, extensions, { log });
+
+    assert(extendedOp, 'Failed to create ExtendedOperation instance');
 
     return {
       oas,

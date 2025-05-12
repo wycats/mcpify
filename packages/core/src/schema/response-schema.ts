@@ -1,37 +1,52 @@
 import type { LogLayer } from 'loglayer';
 import type Oas from 'oas';
-import type { OpenAPIV3 } from 'openapi-types';
+import type { HttpMethods } from 'oas/types';
 import type { JSONSchema } from 'zod-from-json-schema';
+
+import type { PathOperation } from '../parameter-mapper.ts';
+
+export interface OpPointer {
+  path: string;
+  method: HttpMethods;
+}
 
 /**
  * Handles extraction and management of response schemas from OpenAPI specifications
  */
 export class ResponseSchemaExtractor {
-  readonly #oas: Oas;
+  static from(oas: Oas, pointer: OpPointer, log: LogLayer): ResponseSchemaExtractor {
+    const op = oas.getOperation(pointer.path, pointer.method);
+    return new ResponseSchemaExtractor(op, log);
+  }
+
+  static fromOp(op: PathOperation, log: LogLayer): ResponseSchemaExtractor {
+    return new ResponseSchemaExtractor(op, log);
+  }
+
+  readonly #op: PathOperation;
   readonly #log: LogLayer;
   readonly #cache = new Map<string, JSONSchema | null>();
-  readonly #path: string;
-  readonly #method: string;
 
   /**
    * Creates a new ResponseSchemaExtractor
-   * 
+   *
    * @param oas - OpenAPI specification object with path and method information
    * @param log - Logger instance for debugging and error reporting
    */
-  constructor(oas: Oas & { path: string; method: string }, log: LogLayer) {
-    this.#oas = oas;
+  private constructor(op: PathOperation, log: LogLayer) {
+    if (!op.getResponseByStatusCode) {
+      throw new Error('No getResponseByStatusCode method found on operation');
+    }
+
+    this.#op = op;
     this.#log = log;
-    // Store path and method for easy access
-    this.#path = oas.path;
-    this.#method = oas.method;
   }
 
   /**
    * Retrieves the response schema for a specific status code.
    * Results are cached for better performance.
    * If the specific status code is not found, it falls back to 'default'.
-   * 
+   *
    * @param code - HTTP status code (e.g., '200', '404') or 'default'
    * @returns JSON Schema for the response or null if not found
    */
@@ -44,12 +59,12 @@ export class ResponseSchemaExtractor {
     try {
       // Try to get the schema for the specific status code
       let schema = this.#extractSchema(code);
-      
+
       // If not found and it's not 'default', try the default schema
       if (!schema && code !== 'default') {
         schema = this.#extractSchema('default');
       }
-      
+
       // Cache the result (even if null)
       this.#cache.set(code, schema);
       return schema;
@@ -73,102 +88,74 @@ export class ResponseSchemaExtractor {
    */
   #extractSchema(statusCode: string): JSONSchema | null {
     try {
-      // Using standard OpenAPIV3 types for better type safety
-      interface ApiDocument {
-        paths?: Record<
-          string,
-          Record<
-            string,
-            {
-              responses?: Record<string, OpenAPIV3.ResponseObject>;
-            }
-          >
-        >;
-      }
+      const response = this.#op.getResponseByStatusCode(statusCode);
 
-      // Isolate the any conversion to a single constrained location with appropriate comment
-      const rawOas = this.#oas;
-      // Type cast to OpenAPIV3 document type for type safety
-      const api = rawOas.api as ApiDocument;
-
-      // Navigate the structure with type safety using optional chaining
-      const contentObj =
-        api.paths?.[this.#path]?.[this.#method]?.responses?.[statusCode]?.content;
-
-      // Return null if no content object exists
-      if (!contentObj) {
-        this.#log.debug(`No content object found for status code ${statusCode}`);
+      if (typeof response === 'boolean') {
+        this.#log.debug(`No response found for status code ${statusCode}`);
         return null;
       }
 
+      const content = response.content;
+
+      if (!content) {
+        this.#log.debug(`No content found for status code ${statusCode}`);
+        return null;
+      }
+
+      const hasJson = 'application/json' in content;
       // Get all available content types
-      const contentTypes = Object.keys(contentObj);
-      if (contentTypes.length === 0) {
+      const [firstContentType] = Object.keys(content);
+      if (firstContentType === undefined) {
         this.#log.debug(`No content types found for status code ${statusCode}`);
         return null;
       }
-      
-      // Since we've verified contentTypes has entries, we can safely use the first one
-      // We've already checked length > 0, so we know this array has at least one element
-      const firstContentType = contentTypes[0];
-      
+
       // Start with the first content type as default
-      // This is safe because we've verified contentTypes.length > 0 above
       let selectedContentType = firstContentType;
-      
-      if (contentTypes.includes('application/json')) {
+
+      if (hasJson) {
         // Priority 1: application/json
         selectedContentType = 'application/json';
       } else {
         // Priority 2: JSON-compatible types
-        const jsonCompatible = contentTypes.find(
-          type => type.startsWith('application/') && 
-            (type.endsWith('+json') || type.includes('json'))
+        const jsonCompatible = Object.keys(content).find(
+          (type) =>
+            type.startsWith('application/') && (type.endsWith('+json') || type.includes('json')),
         );
-        
+
         if (jsonCompatible) {
           selectedContentType = jsonCompatible;
         }
         // Otherwise keep the default (first content type)
       }
-      
+
       // TypeScript guard to ensure selectedContentType is a valid property key
       // This is redundant given our selection logic but satisfies TypeScript's type checker
-      if (typeof selectedContentType !== 'string' || !(selectedContentType in contentObj)) {
-        this.#log.debug(`Selected content type ${selectedContentType} not found in response for status code ${statusCode}`);
+      if (typeof selectedContentType !== 'string' || !(selectedContentType in content)) {
+        this.#log.debug(
+          `Selected content type ${selectedContentType} not found in response for status code ${statusCode}`,
+        );
         return null;
       }
 
       // Now we can safely access contentObj with the selected content type
       // TypeScript now knows selectedContentType is a valid key in contentObj
-      const contentTypeObj = contentObj[selectedContentType];
-      
+      const contentTypeObj = content[selectedContentType];
+
       // Use optional chaining for more concise property access
       const schema = contentTypeObj?.schema;
       if (!schema) {
-        this.#log.debug(`No schema found for content type ${selectedContentType} and status code ${statusCode}`);
+        this.#log.debug(
+          `No schema found for content type ${selectedContentType} and status code ${statusCode}`,
+        );
         return null;
       }
 
-      // Check if this is a reference schema that could require resolution
-      if ('$ref' in schema) {
-        // Safe type assertion after checking for the property
-        const refObj = schema as { $ref?: string };
-        const refPath = refObj.$ref;
-        
-        if (refPath) {
-          this.#log.info(`Schema for status code ${statusCode} contains reference: ${refPath} that may need resolution`);
-          // Note: A more sophisticated reference resolver could be implemented here
-          // but would require additional dependencies or complex path traversal logic
-        }
-      }
-      
-      // Convert the schema to JSONSchema format
-      return schema as unknown as JSONSchema;
+      return schema as JSONSchema;
     } catch (error) {
       this.#log.error(
-        `Error extracting response schema for status code ${statusCode}:`,
-        error instanceof Error ? error.message : String(error)
+        `Error extracting response schema for status code ${statusCode}`,
+        error instanceof Error ? error.message : String(error),
       );
       return null;
     }
@@ -176,31 +163,14 @@ export class ResponseSchemaExtractor {
 
   /**
    * Gets a list of all available response status codes from the OpenAPI specification.
-   * 
+   *
    * @returns Array of status codes as strings
    */
   getStatusCodes(): string[] {
-    try {
-      const api = this.#oas.api as {
-        paths?: Record<
-          string,
-          Record<string, { responses?: Record<string, unknown> }>
-        >;
-      };
-
-      const responses = api.paths?.[this.#path]?.[this.#method]?.responses;
-      
-      if (!responses) {
-        return [];
-      }
-
-      return Object.keys(responses);
-    } catch (error) {
-      this.#log.error(
-        'Error getting response status codes:',
-        error instanceof Error ? error.message : String(error),
-      );
-      return [];
+    if (this.#op.getResponseStatusCodes === undefined) {
+      console.log(this.#op);
+      this.#log.error('No getResponseStatusCodes method found on operation');
     }
+    return this.#op.getResponseStatusCodes();
   }
 }
