@@ -34,10 +34,6 @@ export class ResponseSchemaExtractor {
    * @param log - Logger instance for debugging and error reporting
    */
   private constructor(op: PathOperation, log: LogLayer) {
-    if (!op.getResponseByStatusCode) {
-      throw new Error('No getResponseByStatusCode method found on operation');
-    }
-
     this.#op = op;
     this.#log = log;
   }
@@ -167,10 +163,6 @@ export class ResponseSchemaExtractor {
    * @returns Array of status codes as strings
    */
   getStatusCodes(): string[] {
-    if (this.#op.getResponseStatusCodes === undefined) {
-      console.log(this.#op);
-      this.#log.error('No getResponseStatusCodes method found on operation');
-    }
     return this.#op.getResponseStatusCodes();
   }
 }
