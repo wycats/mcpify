@@ -248,6 +248,29 @@ describe('Response Schema Handling', () => {
       expect(typeof schemas['200'].parse).toBe('function');
     });
   });
+
+  describe('response schema caching', () => {
+    /**
+     * This test verifies that the extendedOp caches response schemas by checking
+     * that repeated calls to getResponseSchema return the same object instance.
+     * This tests observable behavior without relying on internal implementation.
+     */
+    it('should cache response schemas for repeated access', async () => {
+      const { extendedOp } = await createTestOperation({
+        method: 'get',
+        responseSchemas: {
+          '200': z.object({ property: z.string() }),
+        },
+      });
+      
+      // Get the schema twice
+      const firstAccess = extendedOp.getResponseSchema('200');
+      const secondAccess = extendedOp.getResponseSchema('200');
+      
+      // Verify both references point to the same object (caching is working)
+      expect(secondAccess).toBe(firstAccess);
+    });
+  });
 });
 
 function convertZodToOpenAPI(schema: z.ZodObject<z.ZodRawShape>): OpenAPIV3.SchemaObject {

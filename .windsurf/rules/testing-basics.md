@@ -84,6 +84,43 @@ it('handles path parameters correctly', async () => {
    - Tests use descriptive names that serve as documentation
    - Test setup is minimal and directly related to the behavior being tested
 
+## Implementation Access Restrictions
+
+### Avoid Modifying Private Implementation
+
+```typescript
+// ❌ Avoid: Using Object.defineProperty to modify objects or access private members
+it('tests behavior by messing with internals', () => {
+  // Violates encapsulation and creates brittle tests
+  Object.defineProperty(someObject, 'privateMember', {
+    value: mockImplementation,
+    configurable: true
+  });
+  
+  // Test that relies on implementation details
+  expect(someObject.privateMember).toBe(mockImplementation);
+});
+
+// ✅ Better: Create test fixtures that represent the desired state
+it('tests behavior without touching internals', () => {
+  // Create a test fixture in a known state
+  const fixture = createTestFixture({
+    withBehavior: 'expected behavior'
+  });
+  
+  // Test the observable behavior
+  const result = fixture.performAction();
+  expect(result).toBe('expected result');
+});
+```
+
+**Never use `Object.defineProperty` in tests to:**
+- Access or modify private members (fields, methods)
+- Override methods or properties of objects under test
+- Expose internal state for test assertions
+
+Instead, create proper test fixtures and factory functions that represent the desired states without violating encapsulation.
+
 ## No Mocks Policy
 
 The project strictly avoids using mocks in tests. Instead, we prefer real implementations with controlled inputs:

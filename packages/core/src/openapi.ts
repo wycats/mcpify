@@ -283,8 +283,8 @@ export function normalizeExtensions(extensions: unknown): OperationExtensions {
   }
 
   const result: OperationExtensions = {};
-  
-  for (const [key, value] of Object.entries(extensions)) {
+
+  for (const [key, value] of Object.entries(extensions) as [string, unknown][]) {
     switch (key) {
       case 'operationId':
         if (typeof value === 'string') {
@@ -307,24 +307,23 @@ export function normalizeExtensions(extensions: unknown): OperationExtensions {
         if (typeof value === 'object' && value !== null) {
           // Use a safer type casting approach
           // First check if it's a record with string keys
-          const safeValue = typeof value === 'object' && value !== null ? value : {};
           // Then create a properly typed object
           const annotations: Record<string, unknown> = {};
-          
+
           // Only copy properties that exist
-          for (const key in safeValue) {
-            if (Object.prototype.hasOwnProperty.call(safeValue, key)) {
-              annotations[key] = (safeValue as Record<string, unknown>)[key];
+          for (const [k, v] of Object.entries(value)) {
+            if (Object.prototype.hasOwnProperty.call(value, k)) {
+              annotations[k] = v;
             }
           }
-          
+
           // Process safety annotations
           if ('readOnlyHint' in annotations || 'destructiveHint' in annotations) {
             // Use type-safe access with bracket notation
             const isReadOnly = annotations['readOnlyHint'] === true;
             const isDestructive = annotations['destructiveHint'] === true;
             const isIdempotent = annotations['idempotentHint'] === true;
-            
+
             // Structure the safety object according to ChangeSafety type
             if (isReadOnly) {
               result.safety = { access: 'readonly' };

@@ -26,6 +26,7 @@ export class ResponseSchemaExtractor {
   readonly #op: PathOperation;
   readonly #log: LogLayer;
   readonly #cache = new Map<string, JSONSchema | null>();
+  #statusCodes: string[] = [];
 
   /**
    * Creates a new ResponseSchemaExtractor
@@ -36,6 +37,9 @@ export class ResponseSchemaExtractor {
   private constructor(op: PathOperation, log: LogLayer) {
     this.#op = op;
     this.#log = log;
+    
+    // Initialize status codes cache
+    this.#statusCodes = this.#op.getResponseStatusCodes();
   }
 
   /**
@@ -159,10 +163,13 @@ export class ResponseSchemaExtractor {
 
   /**
    * Gets a list of all available response status codes from the OpenAPI specification.
+   * Results are cached for better performance.
    *
    * @returns Array of status codes as strings
    */
   getStatusCodes(): string[] {
-    return this.#op.getResponseStatusCodes();
+    return [...this.#statusCodes];
   }
+  
+  // [Cache invalidation feature removed as it's rarely used in production environments]
 }

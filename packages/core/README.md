@@ -110,7 +110,7 @@ paths:
   /internal/metrics:
     get:
       x-mcpify:
-        ignore: true  # or false to completely ignore this operation
+        ignore: true
 
 # Override safety annotations (affects resource classification)
 paths:
@@ -127,6 +127,45 @@ An operation with `x-mcpify: ignore: 'resource'` will still be available as a to
 An operation with `x-mcpify: ignore: true` will be completely ignored (neither tool nor resource).
 
 GET operations with non-readonly safety annotations (like `destructiveHint: true`) won't be registered as resources, as resources are expected to be safe to access without side effects.
+
+## 🔄 Response Schema Handling
+
+MCPify provides comprehensive handling for response schemas defined in your OpenAPI specification:
+
+### 🔍 Accessing Response Schemas
+
+```typescript
+// Get schema for a specific status code
+const schema = operation.getResponseSchema('200');
+
+// Get all response schemas as JSON Schema objects
+const schemas = operation.responseSchemas;
+const okSchema = schemas['200'];
+const errorSchema = schemas['400'];
+
+// Get schemas as Zod validation objects
+const zodSchemas = operation.zodResponseSchemas;
+
+// Validate a response
+try {
+  const validatedData = zodSchemas['200'].parse(responseData);
+  // Use validated data...
+} catch (error) {
+  console.error('Response validation failed:', error);
+}
+```
+
+### 🧮 Response Schema Caching
+
+Response schemas are cached for better performance. If the underlying OpenAPI specification changes, restarting the application will clear all caches.
+
+### 📋 Content Type Selection
+
+When multiple content types are available for a response, MCPify selects the best JSON-compatible one using this priority:
+
+1. `application/json` (highest priority)
+2. Any content type ending with `+json` or containing `json`
+3. First available content type (fallback)
 
 ## 📐 Schema Compatibility
 
