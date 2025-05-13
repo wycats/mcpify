@@ -2,16 +2,9 @@
 description: Commit changes to git
 ---
 
-Assume that the user has already staged the changes they wish to commit.
+Assume that the user has already staged the changes they wish to commit, has run `git commit -v`, and has their cursor in `COMMIT_EDITMSG`.
 
-Use the verbose flag to review changes and write an accurate commit message:
-
-```bash
-git commit -v
-```
-
-Once the editor is open, review the contents of the temporary `COMMIT_EDITMSG`,
-modify it to include a commit message, and close the editor.
+Review the contents of the temporary `COMMIT_EDITMSG` and modify it to include a commit message
 
 **Benefits:**
 
