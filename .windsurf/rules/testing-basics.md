@@ -132,4 +132,23 @@ it('processes data correctly', () => {
 - Do not create interfaces just for testing if they would require more than a few fields and methods
 - Always prefer building realistic versions of lower-level components over abstracting them behind interfaces
 
+## Code Coverage
+
+The project uses Istanbul for code coverage reporting:
+
+```typescript
+// Configuration in vitest.config.ts
+coverage: {
+  provider: 'istanbul',
+  reporter: ['text', 'json', 'html'],
+}
+```
+
+**Key practices:**
+
+- Coverage reports are generated in the `coverage` directory
+- Reports are uploaded to Codecov in CI workflows
+- Aim for high test coverage, especially for core functionality
+- The coverage directory is excluded from git
+
 > See [testing-advanced.md](testing-advanced.md) for information on dependency injection patterns and code quality requirements.

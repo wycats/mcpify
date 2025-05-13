@@ -86,7 +86,8 @@ Each guidance file has a specific purpose:
 - **types.md**: Documents TypeScript patterns and coding conventions
 - **principles.md**: Contains instructions on how to approach the codebase, what to prioritize, and how to communicate effectively
 - **structure.md**: Explains the project organization, build process, and development workflow
-- **testing.md**: Outlines testing guidelines, including dependency injection patterns and test structure
+- **testing-basics.md** and **testing-advanced.md**: Outline testing guidelines, including dependency injection patterns and test structure
 - **workflow.md**: Documents Git workflow practices, including commit message conventions and techniques
+- **ci-cd.md**: Details the continuous integration and deployment workflows used in the project
 
 Review these files before making suggestions or changes to ensure alignment with the project's practices.

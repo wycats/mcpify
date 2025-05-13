@@ -13,6 +13,15 @@ Review the contents of the temporary `COMMIT_EDITMSG` and modify it to include a
 - Helps write more accurate and detailed commit messages
 - Provides a final opportunity to verify changes before committing
 
+This workflow creates a commit message, and assumes that the user is running `git` commands themselves.
+
+Specifically:
+
+- The user will run this workflow _after_ staging files to run.
+- The user will run this workflow _after_ running `git commit -v`, while `git commit` is waiting for the file to close.
+- The user will close the file themselves, which will continue the commit process.
+- The user will push the commit themselves.
+
 ### Commit Message Format
 
 We follow the [Conventional Commits](https://www.conventionalcommits.org/) standard for commit messages:
