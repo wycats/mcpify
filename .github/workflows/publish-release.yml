@@ -1,0 +1,63 @@
+name: Publish Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - '.release-plan.json'
+
+concurrency:
+  group: publish-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: "Publish to NPM"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+      attestations: write
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - uses: wyvox/action-setup-pnpm@v3
+        with:
+          node-version: 18
+          registry-url: 'https://registry.npmjs.org'
+      
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Run tests
+        run: pnpm test
+      
+      - name: Build packages
+        run: pnpm build
+      
+      - name: Setup Git User
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+      
+      - name: Publish to NPM
+        run: |
+          # Check if .release-plan.json exists
+          if [ -f ".release-plan.json" ]; then
+            echo "Publishing release with release-plan..."
+            NPM_CONFIG_PROVENANCE=true pnpm release-plan publish
+          else
+            echo "No release plan found, skipping release."
+            exit 0
+          fi
+        env:
+          GITHUB_AUTH: ${{ secrets.GITHUB_TOKEN }}
+          # NPM token for publishing packages
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

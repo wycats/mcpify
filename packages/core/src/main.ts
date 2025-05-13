@@ -18,7 +18,11 @@ import type { LogLayerTransport, LogLevel } from 'loglayer';
 
 // Internal dependencies
 
+import type { OpenApiSpecOptions } from './openapi.ts';
 import { OpenApiSpec } from './openapi.ts';
+
+export type { OpenApiSpecOptions };
+export { OpenApiSpec };
 
 // Define the version from package.json
 const version = '0.1.0';

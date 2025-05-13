@@ -23,6 +23,6 @@
     "verbatimModuleSyntax": true,
     "types": ["vitest/importMeta"]
   },
-  "include": ["packages/*/src/**/*.ts", "reset.d.ts"],
+  "include": ["packages/*/src/**/*.ts", "reset.d.ts", "tests/src/**/*.ts"],
   "exclude": ["**/node_modules", "**/dist"]
 }

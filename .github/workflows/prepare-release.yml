@@ -1,0 +1,42 @@
+name: Prepare Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  prepare-release:
+    name: Prepare Release PR
+    runs-on: ubuntu-latest
+    # Only run on main branch and not on PRs
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - uses: wyvox/action-setup-pnpm@v3
+        with:
+          node-version: 18
+      
+      - name: Install dependencies
+        run: pnpm install
+      
+      - name: Setup Git User
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+      
+      - name: Create Release PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Verify all PRs since last release have labels
+          echo "Verifying PR labels..."
+          pnpm release-plan prepare --check-labels-only || echo "Warning: some PRs may be missing required labels"
+          
+          # Create the release PR
+          echo "Creating release PR..."
+          pnpm release-plan prepare --create-release-pr

@@ -1,5 +1,6 @@
 {
   "name": "@mcpify/demo",
+  "private": true,
   "version": "0.1.0",
   "description": "Demo API server for testing MCPify",
   "type": "module",

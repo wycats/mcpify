@@ -2,3 +2,4 @@ packages:
   - '.'
   # Include all packages in the packages directory
   - 'packages/*'
+  - 'tests'

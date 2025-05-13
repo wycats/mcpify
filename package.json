@@ -1,24 +1,33 @@
 {
   "name": "mcpify-monorepo",
   "version": "0.1.0",
-  "description": "MCPify - Convert OpenAPI to MCP tools on the fly",
   "private": true,
+  "description": "MCPify - Convert OpenAPI to MCP tools on the fly",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wycats/mcpify.git"
+  },
   "type": "module",
   "scripts": {
-    "dev": "node --experimental-strip-types packages/core/src/main.ts",
     "build": "pnpm --filter @mcpify/core build",
-    "test": "pnpm vitest --run",
-    "test:watch": "pnpm vitest --watch",
-    "test:coverage": "pnpm vitest run --coverage",
-    "test:ui": "pnpm vitest --ui",
-    "start:core": "pnpm --filter @mcpify/core start",
-    "start:demo": "pnpm --filter @mcpify/demo start",
-    "dev:demo": "pnpm --filter @mcpify/demo dev",
-    "mcpify": "pnpm --filter @mcpify/demo mcpify",
     "demo:test": "pnpm run -r --parallel dev:demo mcpify",
+    "dev": "node --experimental-strip-types packages/core/src/main.ts",
+    "dev:demo": "pnpm --filter @mcpify/demo dev",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "lint:strict": "eslint . --max-warnings 0"
+    "lint:strict": "eslint . --max-warnings 0",
+    "mcpify": "pnpm --filter @mcpify/demo mcpify",
+    "prepare-release": "release-plan prepare",
+    "release": "release-plan publish",
+    "start:core": "pnpm --filter @mcpify/core start",
+    "start:demo": "pnpm --filter @mcpify/demo start",
+    "test": "pnpm vitest --run",
+    "test:coverage": "pnpm vitest run --coverage",
+    "test:ui": "pnpm vitest --ui",
+    "test:watch": "pnpm vitest --watch"
+  },
+  "dependencies": {
+    "@vitest/ui": "^3.1.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.1",
@@ -31,10 +40,8 @@
     "eslint-config-prettier": "^10.1.2",
     "eslint-plugin-import": "^2.31.0",
     "prettier": "^3.5.3",
+    "release-plan": "^0.16.0",
     "typescript": "~5.8.3",
     "vitest": "^3.1.2"
-  },
-  "dependencies": {
-    "@vitest/ui": "^3.1.2"
   }
 }

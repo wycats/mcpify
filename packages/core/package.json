@@ -4,7 +4,8 @@
   "description": "A dynamic proxy that converts OpenAPI endpoints into MCP tools on the fly",
   "type": "module",
   "exports": {
-    ".": "./src/main.ts"
+    ".": "./src/main.ts",
+    "./test": "./src/test/index.ts"
   },
   "scripts": {
     "dev": "vite",
@@ -39,7 +40,7 @@
   "dependencies": {
     "@apidevtools/json-schema-ref-parser": "^12.0.1",
     "@commander-js/extra-typings": "^13.1.0",
-    "@modelcontextprotocol/sdk": "^1.11.0",
+    "@modelcontextprotocol/sdk": "^1.11.2",
     "@readme/httpsnippet": "^11.0.0",
     "@readme/oas-to-har": "^26.0.0",
     "@readme/openapi-parser": "^4.0.0",

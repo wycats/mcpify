@@ -34,7 +34,7 @@ export default [
 
   // Apply TypeScript plugin's recommended configuration for core package
   {
-    files: ['packages/core/**/*.ts', 'packages/core/**/*.tsx'],
+    files: ['packages/core/**/*.ts', 'tests/**/*.ts'],
     languageOptions: {
       parser: typescriptParser,
       parserOptions: {

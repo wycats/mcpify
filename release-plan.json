@@ -1,0 +1,18 @@
+{
+  "changelog": {
+    "path": "CHANGELOG.md",
+    "categories": {
+      "breaking": "Breaking Changes",
+      "enhancement": "Features",
+      "bug": "Bug Fixes",
+      "documentation": "Documentation"
+    }
+  },
+  "packages": {
+    "@mcpify/core": {
+      "path": "packages/core"
+    }
+  },
+  "dryRun": false,
+  "plugins": ["workspaces"]
+}

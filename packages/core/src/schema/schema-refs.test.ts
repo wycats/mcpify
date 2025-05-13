@@ -1,7 +1,7 @@
 import type Oas from 'oas';
 import type { HttpMethods } from 'oas/types';
 import type { OpenAPIV3 } from 'openapi-types';
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 import { log } from '../log.ts';
 import { createTestOas } from '../test/create-oas.ts';
@@ -23,12 +23,11 @@ interface SchemaWithRef {
   additionalProperties?: boolean | SchemaWithRef;
 }
 
+/**
+ * This test suite documents and verifies our assumptions about how $ref
+ * is handled in OpenAPI and how it is resolved in the MCPify codebase.
+ */
 describe('Schema References Resolution', () => {
-  // Add this message to document limitations
-  console.info(
-    '\nIMPORTANT: This test verifies how $refs in response schemas are handled.\n' +
-      'When using createNormalizedOas, references should be properly resolved.\n',
-  );
   /**
    * Helper function to create a response schema extractor for testing
    */
@@ -37,32 +36,9 @@ describe('Schema References Resolution', () => {
     path: string,
     method: HttpMethods,
   ): ResponseSchemaExtractor {
-    console.debug(`Creating extractor for ${path} ${method}`);
-    try {
-      const operation = spec.operation(path, method);
-      // Operation responses property exists at runtime but is not in TypeScript definition
-      // @ts-expect-error Using operation.responses which exists at runtime
-      const responses = operation.responses as Record<string, unknown>;
-      if (responses) {
-        console.debug('Operation has responses:', Object.keys(responses));
-      } else {
-        console.debug('Operation has no responses property');
-      }
-    } catch (error) {
-      // Safe error handling
-      console.error(
-        'Error inspecting operation:',
-        error instanceof Error ? error.message : String(error),
-      );
-    }
     // Create a new schema extractor instance
     return ResponseSchemaExtractorClass.fromOp(spec.operation(path, method), log);
   }
-
-  afterEach(() => {
-    // Clean up after each test
-    console.debug('Test completed');
-  });
 
   it('should resolve $ref references in response schemas', async () => {
     // Arrange
@@ -149,11 +125,9 @@ describe('Schema References Resolution', () => {
         Error: apiErrorSchema,
       },
     };
-    
+
     // Create a fully normalized spec with resolved references
     const spec = await createTestOas(petsPaths, components);
-
-    console.dir({ spec }, { depth: Infinity });
 
     // Use the ResponseSchemaExtractor to get schemas from the parsed spec
     const extractor = createExtractorFromSpec(spec, '/pets/{petId}', 'get' as HttpMethods);
@@ -162,10 +136,6 @@ describe('Schema References Resolution', () => {
     const successSchema = extractor.getSchema('200');
     // Get the 404 response schema
     const errorSchema = extractor.getSchema('404');
-
-    // Log the schema for debugging
-    console.debug('Success Schema:', successSchema);
-    console.debug('Error Schema:', errorSchema);
 
     // Assert
     // Check that schemas exist
@@ -282,7 +252,7 @@ describe('Schema References Resolution', () => {
         Pet: petWithRefsSchema,
       },
     };
-    
+
     // Create a fully normalized spec with resolved references
     const spec = await createTestOas(listPetsPath, nestedComponents);
 
@@ -291,9 +261,6 @@ describe('Schema References Resolution', () => {
 
     // Get the 200 response schema
     const petsSchema = extractor.getSchema('200');
-
-    // Log the schema for debugging
-    console.debug('Pets Schema:', JSON.stringify(petsSchema, null, 2));
 
     // Assert schema exists
     expect(petsSchema).not.toBeNull();
@@ -335,7 +302,5 @@ describe('Schema References Resolution', () => {
         }
       }
     }
-
-    log.info('All nested references were properly resolved through createNormalizedOas');
   });
 });
