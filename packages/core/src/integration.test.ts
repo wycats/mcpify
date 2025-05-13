@@ -2,16 +2,14 @@
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
-import { TestLoggingLibrary, TestTransport } from 'loglayer';
-import type { LogLevel } from 'loglayer';
 import Oas from 'oas';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
-import { App } from './main.ts';
 import { OpenApiSpec } from './openapi.ts';
 import type { OpenApiSpecOptions } from './openapi.ts';
+import { testApp } from './test/create-oas.ts';
 
 // Define specific callback types for our test implementation to avoid using 'Function' type
 type ResourceCallbackFn = (uri: string, args: Record<string, unknown>) => Promise<unknown>;
@@ -298,7 +296,7 @@ describe('MCPify Integration', () => {
       const getPetCall = testServer.resourceCalls.find((call) => call.id === 'getPetById');
       expect(getPetCall).toBeDefined();
       expect(getPetCall?.uri).toBeInstanceOf(ResourceTemplate);
-      
+
       // Access the uriTemplate through the ResourceTemplate's getter
       const resourceTemplate = getPetCall?.uri as ResourceTemplate;
       const templatePattern = resourceTemplate.uriTemplate.toString();
@@ -325,13 +323,38 @@ describe('MCPify Integration', () => {
         info: { title: 'HTTP Methods API', version: '1.0.0' },
         paths: {
           '/items/{itemId}': {
-            get: { operationId: 'getItem', parameters: [{ name: 'itemId', in: 'path', required: true, schema: { type: 'string' } }] },
-            post: { operationId: 'createItem', parameters: [{ name: 'itemId', in: 'path', required: true, schema: { type: 'string' } }] },
-            put: { operationId: 'updateItem', parameters: [{ name: 'itemId', in: 'path', required: true, schema: { type: 'string' } }] },
-            patch: { operationId: 'patchItem', parameters: [{ name: 'itemId', in: 'path', required: true, schema: { type: 'string' } }] },
-            delete: { operationId: 'deleteItem', parameters: [{ name: 'itemId', in: 'path', required: true, schema: { type: 'string' } }] },
-          }
-        }
+            get: {
+              operationId: 'getItem',
+              parameters: [
+                { name: 'itemId', in: 'path', required: true, schema: { type: 'string' } },
+              ],
+            },
+            post: {
+              operationId: 'createItem',
+              parameters: [
+                { name: 'itemId', in: 'path', required: true, schema: { type: 'string' } },
+              ],
+            },
+            put: {
+              operationId: 'updateItem',
+              parameters: [
+                { name: 'itemId', in: 'path', required: true, schema: { type: 'string' } },
+              ],
+            },
+            patch: {
+              operationId: 'patchItem',
+              parameters: [
+                { name: 'itemId', in: 'path', required: true, schema: { type: 'string' } },
+              ],
+            },
+            delete: {
+              operationId: 'deleteItem',
+              parameters: [
+                { name: 'itemId', in: 'path', required: true, schema: { type: 'string' } },
+              ],
+            },
+          },
+        },
       };
 
       // Create a new TestMcpServer for this test
@@ -344,7 +367,7 @@ describe('MCPify Integration', () => {
       methodsOpenApiSpec.createResources(methodsTestServer as unknown as McpServer);
 
       // Only GET should be registered as a resource
-      const operationIds = methodsTestServer.resourceCalls.map(call => call.id);
+      const operationIds = methodsTestServer.resourceCalls.map((call) => call.id);
       expect(operationIds).toContain('getItem');
       expect(operationIds).not.toContain('createItem');
       expect(operationIds).not.toContain('updateItem');
@@ -363,13 +386,13 @@ describe('MCPify Integration', () => {
 
       // Test that the callback is registered with the correct signature
       expect(getPetCall?.callback).toBeDefined();
-      
+
       // Since we've already verified getPetCall exists, we use an if guard
       // for type narrowing following the project's style guidelines
       if (getPetCall) {
         const { callback } = getPetCall;
         expect(typeof callback).toBe('function');
-        
+
         // Verify the callback signature by examining its length
         // ResourceCallbackFn should have 2 parameters (uri and args)
         expect(callback.length).toBe(2);
@@ -441,15 +464,3 @@ describe('MCPify Integration', () => {
     });
   });
 });
-
-export type LogLevelString = keyof typeof LogLevel;
-
-export function testApp(): { app: App; test: TestLoggingLibrary } {
-  const test = new TestLoggingLibrary();
-  const log = new TestTransport({
-    logger: test,
-  });
-  const app = new App({ log });
-
-  return { app, test };
-}

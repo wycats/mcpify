@@ -1,8 +1,8 @@
 import { describe, it, expect, assert } from 'vitest';
 import { z } from 'zod';
 
-import { testApp } from '../integration.test.ts';
 import { buildOp } from '../parameter-mapper.test.ts';
+import { testApp } from '../test/create-oas.ts';
 
 import { buildRequestInit } from './request-builder.ts';
 import { createSpec } from './test-utils.ts';

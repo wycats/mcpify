@@ -1,15 +1,15 @@
 import type { LogLayer, TestLoggingLibrary } from 'loglayer';
-import Oas from 'oas';
-import type { OperationObject, PathsObject } from 'oas/types';
+import type Oas from 'oas';
+import type { PathsObject } from 'oas/types';
 import type { OpenAPIV3 } from 'openapi-types';
 import { describe, it, expect, assert } from 'vitest';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
-import { testApp } from './integration.test.ts';
 import { ExtendedOperation } from './parameter-mapper.ts';
 import type { OperationExtensions, PathOperation } from './parameter-mapper.ts';
 import { HttpVerb } from './safety.ts';
+import { createTestOas, testApp } from './test/create-oas.ts';
 
 interface TestOperation {
   oas: Oas;
@@ -20,7 +20,7 @@ interface TestOperation {
 }
 
 describe('Response Schema Handling', () => {
-  const createTestOperation = ({
+  const createTestOperation = async ({
     method,
     pathParams = [],
     queryParams = [],
@@ -32,7 +32,7 @@ describe('Response Schema Handling', () => {
     queryParams?: string[];
     responseSchemas?: Record<string, z.ZodObject<z.ZodRawShape>>;
     customResponses?: Record<string, OpenAPIV3.ResponseObject>;
-  }): TestOperation => {
+  }): Promise<TestOperation> => {
     // Create path parameters
     const parameters: OpenAPIV3.ParameterObject[] = [
       ...pathParams.map((name) => ({
@@ -81,7 +81,7 @@ describe('Response Schema Handling', () => {
     });
 
     // Create paths object with the specified operation
-    const paths: Record<string, Record<string, OperationObject>> = {
+    const paths: PathsObject = {
       '/test': {
         [method]: {
           operationId: `test${method}Operation`,
@@ -91,15 +91,8 @@ describe('Response Schema Handling', () => {
       },
     };
 
-    // Create OAS instance
-    const oas = new Oas({
-      openapi: '3.0.0',
-      info: {
-        title: 'Test API',
-        version: '1.0.0',
-      },
-      paths: paths as PathsObject,
-    });
+    // Create OAS instance with fully resolved references
+    const oas = await createTestOas(paths);
 
     const {
       app: { log },
@@ -129,9 +122,9 @@ describe('Response Schema Handling', () => {
   };
 
   describe('getResponseSchema method', () => {
-    it('should return null when no response schema exists', () => {
+    it('should return null when no response schema exists', async () => {
       // Create a custom test operation with no schema
-      const { extendedOp } = createTestOperation({
+      const { extendedOp } = await createTestOperation({
         method: 'get',
         // Custom empty response with no schema
         customResponses: {
@@ -150,14 +143,14 @@ describe('Response Schema Handling', () => {
       expect(schema).toBeNull();
     });
 
-    it('should extract schema for specified status code', () => {
+    it('should extract schema for specified status code', async () => {
       const userSchema = z.object({
         id: z.number(),
         name: z.string(),
         email: z.string().email(),
       });
 
-      const { extendedOp } = createTestOperation({
+      const { extendedOp } = await createTestOperation({
         method: 'get',
         responseSchemas: {
           '200': userSchema,
@@ -172,12 +165,12 @@ describe('Response Schema Handling', () => {
       expect(schema?.properties).toHaveProperty('email');
     });
 
-    it('should return schema for default response if status code not found', () => {
+    it('should return schema for default response if status code not found', async () => {
       const defaultSchema = z.object({
         message: z.string(),
       });
 
-      const { extendedOp } = createTestOperation({
+      const { extendedOp } = await createTestOperation({
         method: 'get',
         responseSchemas: {
           default: defaultSchema,
@@ -199,7 +192,7 @@ describe('Response Schema Handling', () => {
   });
 
   describe('responseSchemas getter', () => {
-    it('should return all available response schemas', () => {
+    it('should return all available response schemas', async () => {
       const successSchema = z.object({
         data: z.string(),
       });
@@ -209,7 +202,7 @@ describe('Response Schema Handling', () => {
         code: z.number(),
       });
 
-      const { extendedOp } = createTestOperation({
+      const { extendedOp } = await createTestOperation({
         method: 'get',
         responseSchemas: {
           '200': successSchema,
@@ -229,7 +222,7 @@ describe('Response Schema Handling', () => {
   });
 
   describe('zodResponseSchemas getter', () => {
-    it('should return Zod schemas for all responses', () => {
+    it('should return Zod schemas for all responses', async () => {
       const successSchema = z.object({
         data: z.string(),
       });
@@ -239,7 +232,7 @@ describe('Response Schema Handling', () => {
         code: z.number(),
       });
 
-      const { extendedOp } = createTestOperation({
+      const { extendedOp } = await createTestOperation({
         method: 'get',
         responseSchemas: {
           '200': successSchema,
@@ -259,6 +252,9 @@ describe('Response Schema Handling', () => {
 
 function convertZodToOpenAPI(schema: z.ZodObject<z.ZodRawShape>): OpenAPIV3.SchemaObject {
   const jsonSchema = zodToJsonSchema(schema);
+
+  delete jsonSchema.$schema;
+
   // This is a type assertion since the schemas are structurally compatible
   // but have different TypeScript types
   return jsonSchema as unknown as OpenAPIV3.SchemaObject;

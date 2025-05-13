@@ -63,7 +63,7 @@ export class OpenApiSpec {
     if (!verb) return null;
 
     const extensions = normalizeExtensions(this.#spec.getExtension('x-mcpify', operation));
-    return new ExtendedOperation(this.#app, verb, operation, extensions);
+    return ExtendedOperation.from(operation, extensions, this.#app);
   }
 
   get #paths(): ExtendedOperation[] {
@@ -229,12 +229,17 @@ async function parseSpecPath(
 }
 
 /**
- * Parse the OpenAPI specification
+ * Parse the OpenAPI specification with full reference resolution
  */
 export async function parseSpec(
   spec: object,
-  deps: ParseSpecDependencies = defaultDependencies,
+  dependencies: Partial<ParseSpecDependencies> = defaultDependencies,
 ): Promise<{ spec: Oas }> {
+  const deps = {
+    ...defaultDependencies,
+    ...dependencies,
+  };
+
   try {
     const normalizer = deps.createNormalizer(spec);
     const validation = await normalizer.validate();
@@ -244,9 +249,20 @@ export async function parseSpec(
       throw new Error(msg);
     }
 
+    // Convert the spec to an OAS document
     const doc = await normalizer.convert();
 
-    const oasSpec = deps.createOas(await deps.createNormalizer(doc).bundle());
+    // Create a new normalizer from the converted document
+    const processedNormalizer = deps.createNormalizer(doc);
+
+    // First dereference to resolve all $refs
+    await processedNormalizer.dereference();
+
+    // Then bundle to ensure proper structure
+    const bundled = await processedNormalizer.bundle();
+
+    // Create the final OAS spec from the fully processed document
+    const oasSpec = deps.createOas(bundled);
 
     return { spec: oasSpec };
   } catch (error) {

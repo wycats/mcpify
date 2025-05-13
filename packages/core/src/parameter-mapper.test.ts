@@ -5,9 +5,9 @@ import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
-import { testApp } from './integration.test.ts';
 import type { BucketLocation, PathOperation, OasRequestArgs } from './parameter-mapper.ts';
 import { buildRequest } from './parameter-mapper.ts';
+import { testApp } from './test/create-oas.ts';
 import type { Verb } from './utils.ts';
 
 /**
@@ -65,7 +65,7 @@ export function buildOp(
     if (options?.body) {
       const contentType = options.contentType ?? 'application/json';
       const schema = zodToJsonSchema(options.body) as OpenAPIV3.SchemaObject;
-      
+
       operationObj.requestBody = {
         content: {
           [contentType]: {
@@ -79,9 +79,9 @@ export function buildOp(
       operationObj.requestBody = {
         content: {
           'application/json': {
-            schema: { 
+            schema: {
               type: 'object',
-              additionalProperties: true
+              additionalProperties: true,
             } as OpenAPIV3.SchemaObject,
           },
         },

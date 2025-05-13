@@ -3,7 +3,7 @@ import type { HttpMethods } from 'oas/types';
 import type { OpenAPIV3 } from 'openapi-types';
 import { describe, it, expect } from 'vitest';
 
-import { testApp } from '../integration.test.ts';
+import { testApp } from '../test/create-oas.ts';
 
 import { ResponseSchemaExtractor } from './response-schema.ts';
 
