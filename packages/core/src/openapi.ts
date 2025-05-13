@@ -277,10 +277,71 @@ export function normalizeExtensions(extensions: unknown): OperationExtensions {
     return {};
   }
 
+  // Handle boolean case where x-mcpify: false or x-mcpify: true
+  if (typeof extensions === 'boolean' && extensions === false) {
+    return { ignore: true };
+  }
+
   const result: OperationExtensions = {};
+  
   for (const [key, value] of Object.entries(extensions)) {
-    if (key === 'operationId') {
-      result.operationId = value as string;
+    switch (key) {
+      case 'operationId':
+        if (typeof value === 'string') {
+          result.operationId = value;
+        }
+        break;
+
+      case 'ignore':
+        // Handle both boolean and string values with explicit type checks
+        if (value === true) {
+          result.ignore = true;
+        } else if (value === 'resource') {
+          result.ignore = 'resource';
+        } else if (value === 'tool') {
+          result.ignore = 'tool';
+        }
+        break;
+
+      case 'annotations':
+        if (typeof value === 'object' && value !== null) {
+          // Use a safer type casting approach
+          // First check if it's a record with string keys
+          const safeValue = typeof value === 'object' && value !== null ? value : {};
+          // Then create a properly typed object
+          const annotations: Record<string, unknown> = {};
+          
+          // Only copy properties that exist
+          for (const key in safeValue) {
+            if (Object.prototype.hasOwnProperty.call(safeValue, key)) {
+              annotations[key] = (safeValue as Record<string, unknown>)[key];
+            }
+          }
+          
+          // Process safety annotations
+          if ('readOnlyHint' in annotations || 'destructiveHint' in annotations) {
+            // Use type-safe access with bracket notation
+            const isReadOnly = annotations['readOnlyHint'] === true;
+            const isDestructive = annotations['destructiveHint'] === true;
+            const isIdempotent = annotations['idempotentHint'] === true;
+            
+            // Structure the safety object according to ChangeSafety type
+            if (isReadOnly) {
+              result.safety = { access: 'readonly' };
+            } else if (isDestructive) {
+              result.safety = { access: 'delete' };
+            } else {
+              result.safety = { access: 'update', idempotent: isIdempotent };
+            }
+          }
+        }
+        break;
+
+      case 'description':
+        if (typeof value === 'string') {
+          result.description = value;
+        }
+        break;
     }
   }
 

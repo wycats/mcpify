@@ -90,6 +90,43 @@ Endpoints are automatically converted to MCP resources when:
 2. And either:
    - Has no parameters, or
    - Has only path parameters (for resource templates)
+3. And does not have a request body
+4. And is not excluded by configuration (see below)
+
+#### Resource Classification Rules
+
+Resource generation can be controlled via `x-mcpify` extensions:
+
+```yaml
+# Disable resource generation (still available as a tool)
+paths:
+  /users/{id}:
+    get:
+      x-mcpify:
+        ignore: 'resource'
+
+# Disable both resource and tool generation
+paths:
+  /internal/metrics:
+    get:
+      x-mcpify:
+        ignore: true  # or false to completely ignore this operation
+
+# Override safety annotations (affects resource classification)
+paths:
+  /dangerous-get/{id}:
+    get:
+      x-mcpify:
+        annotations:
+          readOnlyHint: false    # non-readonly GETs are not registered as resources
+          destructiveHint: true   # destructive operations aren't registered as resources
+```
+
+An operation with `x-mcpify: ignore: 'resource'` will still be available as a tool but won't be registered as a resource.
+
+An operation with `x-mcpify: ignore: true` will be completely ignored (neither tool nor resource).
+
+GET operations with non-readonly safety annotations (like `destructiveHint: true`) won't be registered as resources, as resources are expected to be safe to access without side effects.
 
 ## 📐 Schema Compatibility
 
