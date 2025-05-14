@@ -197,6 +197,14 @@ const defaultDependencies: ParseSpecDependencies = {
   logger: log,
 };
 
+function createNormalizer(value: unknown): OASNormalize {
+  const normalizer = new OASNormalize(value, {
+    parser: { validate: { errors: { colorize: true } } },
+  });
+
+  return normalizer;
+}
+
 /**
  * Parse the OpenAPI specification
  */
@@ -205,18 +213,20 @@ async function parseSpecPath(
   deps: ParseSpecDependencies = defaultDependencies,
 ): Promise<{ spec: Oas }> {
   try {
-    const normalizer = deps.createNormalizer(specPath);
-    const validation = await normalizer.validate();
+    const normalizer = createNormalizer(specPath);
+    const doc = normalizer.convert();
+    const validation = await createNormalizer(doc).validate();
 
     if (!validation.valid) {
       const msg = deps.compileErrors(validation);
+      console.error(validation);
       throw new Error(msg);
     }
 
-    await normalizer.convert();
-    await normalizer.dereference();
+    const dereffed = await createNormalizer(doc).dereference();
+    const bundled = await createNormalizer(dereffed).bundle();
 
-    const spec = deps.createOas(await normalizer.bundle());
+    const spec = deps.createOas(bundled);
 
     return { spec };
   } catch (error) {
