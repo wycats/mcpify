@@ -63,6 +63,9 @@ importers:
       '@commander-js/extra-typings':
         specifier: ^13.1.0
         version: 13.1.0(commander@13.1.0)
+      '@loglayer/transport-log-file-rotation':
+        specifier: ^2.1.0
+        version: 2.1.0
       '@modelcontextprotocol/sdk':
         specifier: ^1.11.2
         version: 1.11.2
@@ -105,6 +108,9 @@ importers:
       qs:
         specifier: ^6.14.0
         version: 6.14.0
+      serialize-error:
+        specifier: ^12.0.0
+        version: 12.0.0
       url-template:
         specifier: ^3.1.1
         version: 3.1.1
@@ -586,8 +592,20 @@ packages:
     resolution: {integrity: sha512-M31Wrue64t0PLmhLsa8PGcRIbQJTcuEAzJoE89m9YvSOzZ0Kzzml/mvEQwLdPAqzYSVyxwcOcOvT3jPq+YBB3A==}
     engines: {node: '>=18'}
 
+  '@loglayer/shared@2.3.0':
+    resolution: {integrity: sha512-jBg8RC13ytx7ZfWOAdlYOt61T2GrbsJpNDrAmuK/flOhNW30OENn21l7Ns28L986QfTRPJyVtKxe5lqFN2w3vg==}
+    engines: {node: '>=18'}
+
+  '@loglayer/transport-log-file-rotation@2.1.0':
+    resolution: {integrity: sha512-39kTOAni2bydHSeB7b//Ko2YEpl2eRAI+Q2X6sHk7cAksn79ZmtrBVfc9Du7yAh7aOBc5L4kQbmQGJrnN3eW1g==}
+    engines: {node: '>=18'}
+
   '@loglayer/transport@2.1.1':
     resolution: {integrity: sha512-zOU/ZC0LUwgzbEU7+OMm5R3s4xuEAEUKkWIIhIHfxJcWAFFAl/YkvPO0pRVGo2yxHkL11SMzkdnddyIBkUHV0g==}
+    engines: {node: '>=18'}
+
+  '@loglayer/transport@2.2.0':
+    resolution: {integrity: sha512-X6j9o9Q+xuGL3HnNu+dcAlBgf+9LBswsVK9MOKQJdOSCwQZpSrEBilaZdecuLhoczZsqIu11cbRXzAsbFj06sA==}
     engines: {node: '>=18'}
 
   '@manypkg/find-root@2.2.3':
@@ -1650,6 +1668,9 @@ packages:
   file-entry-cache@8.0.0:
     resolution: {integrity: sha512-XXTUwCvisa5oacNGRP9SfNtYBNAMi+RPwBFmblZEF7N7swHYQS6/Zfk7SRwx4D5j3CH211YNRco1DEMNVfZCnQ==}
     engines: {node: '>=16.0.0'}
+
+  file-stream-rotator@1.0.0:
+    resolution: {integrity: sha512-qg5mQO7o+vhS7NPqkrkfJS8qqhz0d17Tnewmb5sUTUKwYe27LKaDtbTuRAtQWkBn6jROuFPVIDF5DtckzokFTQ==}
 
   fill-range@7.1.1:
     resolution: {integrity: sha512-YsGpe3WHLK8ZYi4tWDg2Jy3ebRz2rXowDxnld4bkQB00cc/1Zw9AWnC0i9ztDJitivtQvaI9KaLyKrc+hBW0yg==}
@@ -2809,6 +2830,10 @@ packages:
     resolution: {integrity: sha512-uaW0WwXKpL9blXE2o0bRhoL2EGXIrZxQ2ZQ4mgcfoBxdFmQold+qWsD2jLrfZ0trjKL6vOw0j//eAwcALFjKSw==}
     engines: {node: '>= 18'}
 
+  serialize-error@12.0.0:
+    resolution: {integrity: sha512-ZYkZLAvKTKQXWuh5XpBw7CdbSzagarX39WyZ2H07CDLC5/KfsRGlIXV8d4+tfqX1M7916mRqR1QfNHSij+c9Pw==}
+    engines: {node: '>=18'}
+
   serve-static@1.16.2:
     resolution: {integrity: sha512-VqpjJZKadQB/PEbEwvFdO43Ax5dFBZ2UECszz8bQ7pi7wt//PWe1P6MN7eCnjsatYtBT6EuiClbjSWP2WrIoTw==}
     engines: {node: '>= 0.8.0'}
@@ -3083,6 +3108,10 @@ packages:
   type-check@0.4.0:
     resolution: {integrity: sha512-XleUoc9uwGXqjWwXaUTZAmzMcFZ5858QA2vvx1Ur5xIcixXIP+8LnFDgRplU30us6teqdlskFfu+ae4K79Ooew==}
     engines: {node: '>= 0.8.0'}
+
+  type-fest@4.41.0:
+    resolution: {integrity: sha512-TeTSQ6H5YHvpqVwBRcnLDCBnDOHWYu7IvGbHT6N8AOymcr9PJGjc1GTtiWZTYg0NCgYwvnYWEkVChQAr9bjfwA==}
+    engines: {node: '>=16'}
 
   type-is@1.6.18:
     resolution: {integrity: sha512-TkRKr9sUTxEH8MdfuCSP7VizJyzRNMjj2J2do2Jr3Kym598JVdEksuzPQCnlFPW4ky9Q+iA+ma9BGm06XQBy8g==}
@@ -3708,9 +3737,20 @@ snapshots:
 
   '@loglayer/shared@2.2.1': {}
 
+  '@loglayer/shared@2.3.0': {}
+
+  '@loglayer/transport-log-file-rotation@2.1.0':
+    dependencies:
+      '@loglayer/transport': 2.2.0
+      file-stream-rotator: 1.0.0
+
   '@loglayer/transport@2.1.1':
     dependencies:
       '@loglayer/shared': 2.2.1
+
+  '@loglayer/transport@2.2.0':
+    dependencies:
+      '@loglayer/shared': 2.3.0
 
   '@manypkg/find-root@2.2.3':
     dependencies:
@@ -5070,6 +5110,8 @@ snapshots:
     dependencies:
       flat-cache: 4.0.1
 
+  file-stream-rotator@1.0.0: {}
+
   fill-range@7.1.1:
     dependencies:
       to-regex-range: 5.0.1
@@ -6293,6 +6335,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  serialize-error@12.0.0:
+    dependencies:
+      type-fest: 4.41.0
+
   serve-static@1.16.2:
     dependencies:
       encodeurl: 2.0.0
@@ -6624,6 +6670,8 @@ snapshots:
   type-check@0.4.0:
     dependencies:
       prelude-ls: 1.2.1
+
+  type-fest@4.41.0: {}
 
   type-is@1.6.18:
     dependencies:

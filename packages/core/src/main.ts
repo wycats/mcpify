@@ -3,18 +3,19 @@
  */
 
 import { randomUUID } from 'crypto';
-import { Console as NodeConsole } from 'node:console';
 import type { UUID } from 'node:crypto';
 
 import { Command, Option } from '@commander-js/extra-typings';
+import { LogFileRotationTransport } from '@loglayer/transport-log-file-rotation';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import express from 'express';
 import type { Request, Response } from 'express';
-import { ConsoleTransport, LogLayer } from 'loglayer';
-import type { LogLayerTransport, LogLevel } from 'loglayer';
+import { LogLayer } from 'loglayer';
+import type { ErrorSerializerType, LogLayerConfig, LogLayerTransport, LogLevel } from 'loglayer';
+import { serializeError } from 'serialize-error';
 
 // Internal dependencies
 
@@ -34,22 +35,29 @@ export interface AppOptions {
 }
 
 export class App {
-  static default(options: AppOptions): App {
+  static default(_options: AppOptions): App {
     return new App({
-      log: new ConsoleTransport({
-        logger: new NodeConsole(process.stderr, process.stderr),
-
-        level: options.logLevel,
-      }),
+      serializer: serializeError,
+      log: [
+        new LogFileRotationTransport({
+          filename: './logs/app.log',
+        }),
+      ],
     });
   }
 
   readonly #log: LogLayer;
 
-  constructor(options: { log: LogLayerTransport }) {
-    this.#log = new LogLayer({
-      transport: options.log,
-    });
+  constructor(options: {
+    log: LogLayerTransport | LogLayerTransport[];
+    serializer?: ErrorSerializerType;
+  }) {
+    const opts: LogLayerConfig = { transport: options.log };
+    if (options.serializer) {
+      opts.errorSerializer = options.serializer;
+    }
+
+    this.#log = new LogLayer(opts);
   }
 
   get log(): LogLayer {
