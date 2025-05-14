@@ -51,7 +51,7 @@ export class OperationClient {
     this.#app.log.debug('Calling operation with HAR Data', JSON.stringify(harData, null, 2));
 
     // 1) Get the minimal HAR entry
-    const request = buildRequest(this.#app, this.#ext, harData);
+    const request = buildRequest(this.#app, this.#ext, args);
 
     this.#app.log.debug('Calling operation with HAR Data', JSON.stringify(request, null, 2));
 
@@ -62,6 +62,18 @@ export class OperationClient {
     const request = this.#buildRequest(args);
 
     const response = await fetch(request);
+
+    if (response.status >= 400) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: await response.text(),
+          },
+        ],
+      };
+    }
 
     return toResponseContent(response, this.#app.log, this.#ext);
   }

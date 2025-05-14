@@ -4,6 +4,7 @@ import { parseTemplate } from 'url-template';
 import type { McpifyOperation } from '../operation/ext.ts';
 
 import { createSearchParams } from './request-utils.ts';
+import type { JsonObject } from './request-utils.ts';
 import { getBaseUrl } from './url-utils.ts';
 import type { OasRequestArgs } from './url-utils.ts';
 
@@ -40,9 +41,12 @@ export function buildRequestInit(
   op: McpifyOperation,
   args: OasRequestArgs,
 ): { init: RequestInit; url: URL } {
-  const bucketed = op.bucketArgs(args);
+  app.log.trace('Specified args', JSON.stringify(args, null, 2));
 
-  app.log.debug('Calling operation with HAR Data', JSON.stringify(bucketed, null, 2));
+  // Check if args is already bucketed or needs to be bucketed
+  const bucketed = op.bucketArgs(args as JsonObject);
+
+  app.log.trace('Using bucketed args', JSON.stringify(bucketed, null, 2));
 
   // Extract the base URL from the OAS specification
   const baseUrl = getBaseUrl(op.oas);
@@ -52,22 +56,48 @@ export function buildRequestInit(
 
   // Extract the path from the operation
   const path = op.path;
-  let url: URL | null = null;
+
+  // Log detailed path information
+  app.log.trace(`Original operation path: ${path}`);
+  app.log.trace(`Operation method: ${op.verb.uppercase}`);
+  app.log.trace(`Operation ID: ${op.id}`);
+
   const template = parseTemplate(path);
   const pathParams = bucketed.path;
-  const expandedPath = template.expand(
-    Object.fromEntries(Object.entries(pathParams).map(([k, v]) => [k, String(v)])),
+
+  // Log path parameters before expansion
+  app.log.trace(`Path parameters:`, JSON.stringify(pathParams, null, 2));
+
+  // Convert to string representations for template expansion
+  const templateParams = Object.fromEntries(
+    Object.entries(pathParams).map(([k, v]) => [k, String(v)]),
   );
-  const baseURL = getBaseUrl(op.oas);
-  url = new URL(`${baseURL}${expandedPath}`);
+
+  app.log.debug(`Template parameters:`, JSON.stringify(templateParams, null, 2));
+
+  const expandedPath = template.expand(templateParams);
+
+  // Log the expanded path
+  app.log.debug(`Path after template expansion: ${expandedPath}`);
+  app.log.debug(`Original path for comparison: ${path}`);
+
+  // Properly join baseUrl and path to ensure correct slash handling
+  const joinedPath = expandedPath.startsWith('/')
+    ? `${baseUrl}${expandedPath}`
+    : `${baseUrl}/${expandedPath}`;
+
+  app.log.debug(`Request path: ${joinedPath}`);
+  const url = new URL(joinedPath);
 
   // Add query parameters
   if (Object.keys(bucketed.query).length > 0) {
     createSearchParams(bucketed.query, url.searchParams);
   }
 
-  app.log.debug('Initial URL constructed', JSON.stringify({ baseUrl, path, url }));
-  app.log.debug('Initial URL constructed', JSON.stringify({ baseUrl, path, url }));
+  app.log.trace(
+    'Initial URL constructed',
+    JSON.stringify({ baseUrl, path, expandedPath, url: url.toString() }),
+  );
 
   let requestBody: string | FormData | undefined;
   let contentType: string | null = null;
@@ -109,6 +139,8 @@ export function buildRequestInit(
   if (contentType) {
     (init.headers as Headers).set('Content-Type', contentType);
   }
+
+  (init.headers as Headers).set('Accept', op.responseType);
 
   return { init, url };
 }
