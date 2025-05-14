@@ -95,7 +95,7 @@ export class OpenApiSpec {
           `Converting ${client.op.describe()} → ${client.op.verb.describe()} resource "${client.op.id}"`,
         );
         server.resource(client.op.id, uriTemplate, async (_, args): Promise<ReadResourceResult> => {
-          return client.read(this.#spec, args);
+          return client.read(args);
         });
       } else {
         this.#log.debug(
@@ -105,7 +105,7 @@ export class OpenApiSpec {
           client.op.id,
           `${this.#spec.url()}${path}`,
           async (_, args): Promise<ReadResourceResult> => {
-            return client.read(this.#spec, args);
+            return client.read(args);
           },
         );
       }
@@ -129,7 +129,7 @@ export class OpenApiSpec {
       ): Promise<CallToolResult> => {
         this.#log.info(`Request from ${client.op.describe()}:`, JSON.stringify(args, null, 2));
 
-        return client.invoke(this.#spec, args);
+        return client.invoke(args);
       };
 
       // Extract parameter schemas with full type information

@@ -1,26 +1,23 @@
 import { describe, it, expect, assert } from 'vitest';
-import { z } from 'zod';
 
-import { buildOp } from '../parameter-mapper.test.ts';
 import { testApp } from '../test/create-oas.ts';
+import { createTestOp } from '../test/create-test-op.ts';
 
 import { buildRequestInit } from './request-builder.ts';
-import { createSpec } from './test-utils.ts';
 import type { OasRequestArgs } from './url-utils.ts';
 
 describe('buildRequestInit', () => {
   it('builds a RequestInit with correct method and URL for a simple GET request', () => {
     // Arrange
     const { app } = testApp();
-    const log = app.log;
-    const spec = createSpec();
-    const op = buildOp('get', '/api/test/{id}', { query: { filter: 'active' } });
-    const args: OasRequestArgs = {
-      id: '123',
-    };
+    const { op } = createTestOp('get', { id: 'path' }, undefined, {
+      serverUrl: 'https://api.example.com',
+      path: '/api/test/{id}'
+    });
+    const args: OasRequestArgs = { id: '123' };
 
     // Act
-    const result = buildRequestInit({ log }, spec, op, args);
+    const result = buildRequestInit({ log: app.log }, op, args);
 
     // Assert
     expect(result.init).toMatchObject({
@@ -43,16 +40,17 @@ describe('buildRequestInit', () => {
   it('adds query parameters to the URL when provided', () => {
     // Arrange
     const { app } = testApp();
-    const log = app.log;
-    const spec = createSpec();
-    const op = buildOp('get', '/api/test/{id}', { query: { filter: 'active' } });
+    const { op } = createTestOp('get', { id: 'path', filter: 'query' }, undefined, {
+      serverUrl: 'https://api.example.com',
+      path: '/api/test/{id}'
+    });
     const args: OasRequestArgs = {
       id: '123',
       filter: 'active',
     };
 
     // Act
-    const result = buildRequestInit({ log }, spec, op, args);
+    const result = buildRequestInit({ log: app.log }, op, args);
 
     // Assert
     expect(String(result.url)).toBe('https://api.example.com/api/test/123?filter=active');
@@ -61,9 +59,10 @@ describe('buildRequestInit', () => {
   it('sets the correct method for POST requests with a body', () => {
     // Arrange
     const { app } = testApp();
-    const log = app.log;
-    const spec = createSpec();
-    const op = buildOp('post', '/api/test/{id}');
+    const { op } = createTestOp('post', { id: 'path' }, undefined, {
+      serverUrl: 'https://api.example.com',
+      path: '/api/test/{id}'
+    });
 
     // Use empty args as we're just testing that the request uses the correct method
     const args: OasRequestArgs = {
@@ -71,7 +70,7 @@ describe('buildRequestInit', () => {
     };
 
     // Act
-    const result = buildRequestInit({ log }, spec, op, args);
+    const result = buildRequestInit({ log: app.log }, op, args);
 
     // Assert
     expect(result.init.method).toBe('POST');
@@ -86,16 +85,11 @@ describe('buildRequestInit', () => {
   it('correctly processes request body when provided correctly', () => {
     // Arrange
     const { app } = testApp();
-    const spec = createSpec();
-
-    // Create an operation with a body schema
-    const op = buildOp('post', '/api/test/{id}', {
-      body: z.object({
-        name: z.string(),
-        active: z.boolean(),
-      }),
-      // Explicitly set content type to ensure it's recognized properly
-      contentType: 'application/json',
+    
+    // Create an operation that can handle request bodies
+    const { op } = createTestOp('post', { id: 'path' }, undefined, {
+      serverUrl: 'https://api.example.com',
+      path: '/api/test/{id}'
     });
 
     // Define args with explicit body property
@@ -106,7 +100,7 @@ describe('buildRequestInit', () => {
     };
 
     // Act
-    const result = buildRequestInit({ log: app.log }, spec, op, args);
+    const result = buildRequestInit({ log: app.log }, op, args);
 
     // Assert
     expect(result.init.method).toBe('POST');
@@ -130,8 +124,12 @@ describe('buildRequestInit', () => {
   it('handles POST with JSON body even when content type is different', () => {
     // Arrange
     const { app } = testApp();
-    const spec = createSpec();
-    const op = buildOp('post', '/api/test/{id}');
+    // Create an operation with a JSON body schema
+    const { op } = createTestOp('post', { id: 'path' }, undefined, {
+      serverUrl: 'https://api.example.com',
+      path: '/api/test/{id}',
+      contentType: 'application/json'
+    });
 
     const args: OasRequestArgs = {
       id: '123',
@@ -139,7 +137,7 @@ describe('buildRequestInit', () => {
     };
 
     // Act
-    const result = buildRequestInit({ log: app.log }, spec, op, args);
+    const result = buildRequestInit({ log: app.log }, op, args);
 
     // Assert
     expect(result.init.method).toBe('POST');
@@ -156,8 +154,11 @@ describe('buildRequestInit', () => {
   it('handles operations with path templates containing multiple parameters', () => {
     // Arrange
     const { app } = testApp();
-    const spec = createSpec();
-    const op = buildOp('get', '/api/users/{userId}/posts/{postId}');
+    // Create a test operation with multiple path parameters
+    const { op } = createTestOp('get', { userId: 'path', postId: 'path' }, undefined, {
+      serverUrl: 'https://api.example.com',
+      path: '/api/users/{userId}/posts/{postId}'
+    });
 
     const args: OasRequestArgs = {
       userId: 'user123',
@@ -165,26 +166,48 @@ describe('buildRequestInit', () => {
     };
 
     // Act
-    const result = buildRequestInit({ log: app.log }, spec, op, args);
+    const result = buildRequestInit({ log: app.log }, op, args);
 
     // Assert
     expect(result.url.toString()).toBe('https://api.example.com/api/users/user123/posts/post456');
   });
 
-  it('uses a fallback URL when the spec does not provide one', () => {
+  it('uses a server URL from the operation', () => {
     // Arrange
     const { app } = testApp();
-    // For testing URL construction, we need to provide a valid fallback URL
-    const spec = createSpec('https://default-fallback.example.com');
-    const op = buildOp('get', '/api/test/{id}');
+    // Create a test operation with a path parameter and custom server URL
+    const { op } = createTestOp('get', { id: 'path' }, undefined, {
+      serverUrl: 'https://api.example.com',
+      path: '/api/test/{id}'
+    });
     const args: OasRequestArgs = {
       id: '123',
     };
 
     // Act
-    const result = buildRequestInit({ log: app.log }, spec, op, args);
+    const result = buildRequestInit({ log: app.log }, op, args);
 
     // Assert
-    expect(String(result.url)).toBe('https://default-fallback.example.com/api/test/123');
+    // The URL comes from the API server configuration in createTestOp
+    expect(String(result.url)).toBe('https://api.example.com/api/test/123');
+  });
+
+  it('handles PUT, PATCH, DELETE, and other methods correctly', () => {
+    // Arrange
+    const { app } = testApp();
+    const { op } = createTestOp('put', { id: 'path' }, undefined, {
+      serverUrl: 'https://api.example.com',
+      path: '/api/test/{id}'
+    });
+    const args: OasRequestArgs = {
+      id: '123',
+    };
+
+    // Act
+    const result = buildRequestInit({ log: app.log }, op, args);
+
+    // Assert
+    expect(result.init.method).toBe('PUT');
+    expect(String(result.url)).toBe('https://api.example.com/api/test/123');
   });
 });

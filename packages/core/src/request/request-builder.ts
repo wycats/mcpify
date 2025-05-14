@@ -1,5 +1,4 @@
 import type { LogLayer } from 'loglayer';
-import type Oas from 'oas';
 import { parseTemplate } from 'url-template';
 
 import type { McpifyOperation } from '../operation/ext.ts';
@@ -12,18 +11,16 @@ import type { OasRequestArgs } from './url-utils.ts';
  * Builds a standard Request object from OpenAPI operation and arguments.
  *
  * @param app - Application context with logging capabilities
- * @param spec - OpenAPI specification
  * @param op - Operation to build request for
  * @param args - Arguments for the operation
  * @returns Constructed Request object
  */
 export function buildRequest(
   app: { log: LogLayer },
-  spec: Oas,
   op: McpifyOperation,
   args: OasRequestArgs,
 ): Request {
-  const { init, url } = buildRequestInit(app, spec, op, args);
+  const { init, url } = buildRequestInit(app, op, args);
 
   return new Request(url, init);
 }
@@ -33,7 +30,6 @@ export function buildRequest(
  * This is useful when you need more control over the request creation process.
  *
  * @param app - Application context with logging capabilities
- * @param spec - OpenAPI specification
  * @param op - Operation to build request for
  * @param args - Arguments for the operation
  * @returns Object containing RequestInit and URL objects
@@ -41,7 +37,6 @@ export function buildRequest(
 
 export function buildRequestInit(
   app: { log: LogLayer },
-  spec: Oas,
   op: McpifyOperation,
   args: OasRequestArgs,
 ): { init: RequestInit; url: URL } {
@@ -50,7 +45,7 @@ export function buildRequestInit(
   app.log.debug('Calling operation with HAR Data', JSON.stringify(bucketed, null, 2));
 
   // Extract the base URL from the OAS specification
-  const baseUrl = getBaseUrl(spec);
+  const baseUrl = getBaseUrl(op.oas);
 
   // Log what we were able to find
   app.log.debug(`Base URL resolution result: ${baseUrl || '(empty)'}`);
@@ -63,7 +58,7 @@ export function buildRequestInit(
   const expandedPath = template.expand(
     Object.fromEntries(Object.entries(pathParams).map(([k, v]) => [k, String(v)])),
   );
-  const baseURL = getBaseUrl(spec);
+  const baseURL = getBaseUrl(op.oas);
   url = new URL(`${baseURL}${expandedPath}`);
 
   // Add query parameters

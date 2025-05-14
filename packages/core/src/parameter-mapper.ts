@@ -45,40 +45,34 @@ export class OperationClient {
     return this.#ext;
   }
 
-  #buildRequest(spec: Oas, args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>): Request {
+  #buildRequest(args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>): Request {
     const harData = this.#ext.bucketArgs(args);
 
     this.#app.log.debug('Calling operation with HAR Data', JSON.stringify(harData, null, 2));
 
     // 1) Get the minimal HAR entry
-    const request = buildRequest(this.#app, spec, this.#ext, harData);
+    const request = buildRequest(this.#app, this.#ext, harData);
 
     this.#app.log.debug('Calling operation with HAR Data', JSON.stringify(request, null, 2));
 
     return request;
   }
 
-  async invoke(
-    spec: Oas,
-    args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>,
-  ): Promise<CallToolResult> {
-    const request = this.#buildRequest(spec, args);
+  async invoke(args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>): Promise<CallToolResult> {
+    const request = this.#buildRequest(args);
 
     const response = await fetch(request);
 
     return toResponseContent(response, this.#app.log, this.#ext);
   }
 
-  async read(
-    spec: Oas,
-    args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>,
-  ): Promise<ReadResourceResult> {
+  async read(args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>): Promise<ReadResourceResult> {
     const bucketed = this.#ext.bucketArgs(args);
 
     this.#app.log.debug('Calling operation with Request Init', JSON.stringify(bucketed, null, 2));
 
     // 1) Get the minimal HAR entry
-    const { init, url } = buildRequestInit(this.#app, spec, this.#ext, bucketed);
+    const { init, url } = buildRequestInit(this.#app, this.#ext, bucketed);
 
     this.#app.log.debug('Calling operation with Request Init', JSON.stringify(init, null, 2));
 
