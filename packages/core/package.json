@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "A dynamic proxy that converts OpenAPI endpoints into MCP tools on the fly",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wycats/mcpify.git"
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
   "exports": {
     ".": "./src/main.ts",
     "./test": "./src/test/index.ts"

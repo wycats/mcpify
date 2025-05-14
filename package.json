@@ -1,6 +1,7 @@
 {
   "name": "mcpify-monorepo",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "description": "MCPify - Convert OpenAPI to MCP tools on the fly",
   "repository": {
@@ -41,6 +42,7 @@
     "eslint-config-prettier": "^10.1.2",
     "eslint-plugin-import": "^2.31.0",
     "prettier": "^3.5.3",
+    "publint": "^0.3.12",
     "release-plan": "^0.16.0",
     "typescript": "~5.8.3",
     "vitest": "^3.1.2"
