@@ -235,7 +235,7 @@ describe('ResponseSchemaExtractor', () => {
     });
   });
 
-  describe('getStatusCodes', () => {
+  describe('statusCodes', () => {
     it('should return all available status codes', () => {
       // Arrange
       const responses = {
@@ -247,7 +247,7 @@ describe('ResponseSchemaExtractor', () => {
       const extractor = createExtractor(responses);
 
       // Act
-      const statusCodes = extractor.getStatusCodes();
+      const statusCodes = extractor.statusCodes;
 
       // Assert
       expect(statusCodes).toHaveLength(3);
@@ -261,7 +261,7 @@ describe('ResponseSchemaExtractor', () => {
       const extractor = createExtractor({});
 
       // Act
-      const statusCodes = extractor.getStatusCodes();
+      const statusCodes = extractor.statusCodes;
 
       // Assert
       expect(statusCodes).toEqual([]);

@@ -10,8 +10,10 @@ import type { z } from 'zod';
 
 import { log } from './log.ts';
 import type { App } from './main.ts';
-import { ExtendedOperation } from './parameter-mapper.ts';
-import type { OperationExtensions, PathOperation } from './parameter-mapper.ts';
+import { CustomExtensions } from './operation/custom-extensions.ts';
+import type { CustomExtensionsInterface } from './operation/custom-extensions.ts';
+import { getParameters, OperationClient } from './parameter-mapper.ts';
+import type { PathOperation } from './parameter-mapper.ts';
 import { HttpVerb } from './safety.ts';
 
 export interface OpenApiSpecOptions {
@@ -58,15 +60,15 @@ export class OpenApiSpec {
     return this.#spec;
   }
 
-  #operation(method: string, operation: PathOperation): ExtendedOperation | null {
+  #operation(method: string, operation: PathOperation): OperationClient | null {
     const verb = HttpVerb.from(method);
     if (!verb) return null;
 
     const extensions = normalizeExtensions(this.#spec.getExtension('x-mcpify', operation));
-    return ExtendedOperation.from(operation, extensions, this.#app);
+    return OperationClient.from(operation, extensions, this.#app);
   }
 
-  get #paths(): ExtendedOperation[] {
+  get #paths(): OperationClient[] {
     const paths = this.#spec.getPaths();
     if (Object.keys(paths).length === 0) {
       this.#log.warn('No paths found in the OpenAPI specification');
@@ -80,34 +82,30 @@ export class OpenApiSpec {
   }
 
   createResources(server: McpServer): void {
-    const resources = this.#paths.filter((op) => op.isResource);
+    const resources = this.#paths.filter((client) => client.op.isResource);
 
-    for (const operation of resources) {
-      const path = operation.oas.path;
+    for (const client of resources) {
+      const path = client.op.path;
 
       if (/[{]/.exec(path)) {
         const uriTemplate = new ResourceTemplate(`${this.#spec.url()}${path}`, {
           list: undefined,
         });
         this.#log.debug(
-          `Converting ${operation.describe()} → ${operation.verb.describe()} resource "${operation.id}"`,
+          `Converting ${client.op.describe()} → ${client.op.verb.describe()} resource "${client.op.id}"`,
         );
-        server.resource(
-          operation.oas.getOperationId({ friendlyCase: true }),
-          uriTemplate,
-          async (_, args): Promise<ReadResourceResult> => {
-            return operation.read(this.#spec, args);
-          },
-        );
+        server.resource(client.op.id, uriTemplate, async (_, args): Promise<ReadResourceResult> => {
+          return client.read(this.#spec, args);
+        });
       } else {
         this.#log.debug(
-          `Converting ${operation.describe()} → ${operation.verb.describe()} resource "${operation.id}"`,
+          `Converting ${client.op.describe()} → ${client.op.verb.describe()} resource "${client.op.id}"`,
         );
         server.resource(
-          operation.oas.getOperationId({ friendlyCase: true }),
+          client.op.id,
           `${this.#spec.url()}${path}`,
           async (_, args): Promise<ReadResourceResult> => {
-            return operation.read(this.#spec, args);
+            return client.read(this.#spec, args);
           },
         );
       }
@@ -117,43 +115,43 @@ export class OpenApiSpec {
   createTools(server: McpServer): void {
     let endpointCount = 0;
 
-    const tools = this.#paths.filter((p) => !p.isIgnored('tool'));
+    const tools = this.#paths.filter((client) => !client.op.ignoredWhen({ type: 'tool' }));
 
-    for (const operation of tools) {
+    for (const client of tools) {
       endpointCount++;
 
       this.#log.debug(
-        `Converting ${operation.describe()} → ${operation.verb.describe()} tool "${operation.id}"`,
+        `Converting ${client.op.describe()} → ${client.op.verb.describe()} tool "${client.op.id}"`,
       );
 
       const action: ToolCallback<z.ZodRawShape> = async (
         args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>,
       ): Promise<CallToolResult> => {
-        this.#log.info(`Request from ${operation.describe()}:`, JSON.stringify(args, null, 2));
+        this.#log.info(`Request from ${client.op.describe()}:`, JSON.stringify(args, null, 2));
 
-        return operation.invoke(this.#spec, args);
+        return client.invoke(this.#spec, args);
       };
 
       // Extract parameter schemas with full type information
-      const parameterSchemas = operation.parameters;
+      const parameterSchemas = getParameters(client.op.inner, this.#app);
 
       // Debug: Log the parameters being registered
       this.#log.debug(
-        `Registering tool '${operation.id}' with parameters`,
+        `Registering tool '${client.op.id}' with parameters`,
         JSON.stringify(parameterSchemas),
       );
 
       if (parameterSchemas) {
         // Create tool with proper MCP SDK annotations
         server.tool(
-          operation.id,
-          operation.description,
+          client.op.id,
+          client.op.description,
           parameterSchemas,
-          operation.verb.hints,
+          client.op.verb.hints,
           action,
         );
       } else {
-        server.tool(operation.id, operation.description, operation.verb.hints, action);
+        server.tool(client.op.id, client.op.description, client.op.verb.hints, action);
       }
     }
 
@@ -272,17 +270,17 @@ export async function parseSpec(
   }
 }
 
-export function normalizeExtensions(extensions: unknown): OperationExtensions {
+export function normalizeExtensions(extensions: unknown): CustomExtensions {
   if (typeof extensions !== 'object' || extensions === null) {
-    return {};
+    return CustomExtensions.of({});
   }
 
   // Handle boolean case where x-mcpify: false or x-mcpify: true
   if (typeof extensions === 'boolean' && extensions === false) {
-    return { ignore: true };
+    return CustomExtensions.of({ ignore: true });
   }
 
-  const result: OperationExtensions = {};
+  const result: CustomExtensionsInterface = {};
 
   for (const [key, value] of Object.entries(extensions) as [string, unknown][]) {
     switch (key) {
@@ -344,5 +342,5 @@ export function normalizeExtensions(extensions: unknown): OperationExtensions {
     }
   }
 
-  return result;
+  return CustomExtensions.of(result);
 }

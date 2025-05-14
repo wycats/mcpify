@@ -5,8 +5,9 @@ import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
+import { McpifyOperation } from './operation/ext.ts';
 import type { BucketLocation, PathOperation, OasRequestArgs } from './parameter-mapper.ts';
-import { buildRequest } from './parameter-mapper.ts';
+import { buildRequest } from './request/request-builder.ts';
 import { testApp } from './test/create-oas.ts';
 import type { Verb } from './utils.ts';
 
@@ -25,7 +26,7 @@ export function buildOp(
     body?: z.ZodSchema;
     contentType?: string;
   },
-): PathOperation {
+): McpifyOperation {
   const paramNames = path
     .split('/')
     .filter((part) => part.startsWith('{') && part.endsWith('}'))
@@ -103,7 +104,7 @@ export function buildOp(
     },
   });
 
-  return oas.operation(path, verb);
+  return McpifyOperation.from(oas.operation(path, verb), {}, testApp().app);
 }
 
 export function createOp(
@@ -205,7 +206,7 @@ export function createOp(
 
   // Create the request builder function with correct parameter order
   const build = (args: OasRequestArgs): Request => {
-    return buildRequest(app, oas, operation, args);
+    return buildRequest(app, oas, McpifyOperation.from(operation, {}, app), args);
   };
 
   return { oas, op, build };

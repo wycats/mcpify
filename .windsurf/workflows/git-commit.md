@@ -22,6 +22,8 @@ Specifically:
 - The user will close the file themselves, which will continue the commit process.
 - The user will push the commit themselves.
 
+Read the contents of `COMMIT_EDITMSG` and use them as the main source of information for the commit message. Write a commit message for the user.
+
 ### Commit Message Format
 
 We follow the [Conventional Commits](https://www.conventionalcommits.org/) standard for commit messages:

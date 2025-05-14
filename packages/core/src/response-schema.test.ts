@@ -6,16 +6,17 @@ import { describe, it, expect, assert } from 'vitest';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
-import { ExtendedOperation } from './parameter-mapper.ts';
-import type { OperationExtensions, PathOperation } from './parameter-mapper.ts';
+import { OperationClient } from './parameter-mapper.ts';
+import type { PathOperation } from './parameter-mapper.ts';
 import { HttpVerb } from './safety.ts';
+import { zodResponseSchemas } from './schema/response-schema.ts';
 import { createTestOas, testApp } from './test/create-oas.ts';
 
 interface TestOperation {
   oas: Oas;
   log: LogLayer;
   operation: PathOperation;
-  extendedOp: ExtendedOperation;
+  client: OperationClient;
   testLogger: TestLoggingLibrary;
 }
 
@@ -105,18 +106,16 @@ describe('Response Schema Handling', () => {
 
     assert(verb, `Unsupported HTTP method: ${method}`);
 
-    const extensions: OperationExtensions = {};
-
     // Create ExtendedOperation instance
-    const extendedOp = ExtendedOperation.from(operation, extensions, { log });
+    const client = OperationClient.from(operation, {}, { log });
 
-    assert(extendedOp, 'Failed to create ExtendedOperation instance');
+    assert(client, 'Failed to create OperationClient instance');
 
     return {
       oas,
       log,
       operation,
-      extendedOp,
+      client,
       testLogger,
     };
   };
@@ -124,7 +123,7 @@ describe('Response Schema Handling', () => {
   describe('getResponseSchema method', () => {
     it('should return null when no response schema exists', async () => {
       // Create a custom test operation with no schema
-      const { extendedOp } = await createTestOperation({
+      const { client } = await createTestOperation({
         method: 'get',
         // Custom empty response with no schema
         customResponses: {
@@ -138,7 +137,7 @@ describe('Response Schema Handling', () => {
         },
       });
 
-      const schema = extendedOp.getResponseSchema('200');
+      const schema = client.op.response.getSchema('200');
 
       expect(schema).toBeNull();
     });
@@ -150,14 +149,14 @@ describe('Response Schema Handling', () => {
         email: z.string().email(),
       });
 
-      const { extendedOp } = await createTestOperation({
+      const { client } = await createTestOperation({
         method: 'get',
         responseSchemas: {
           '200': userSchema,
         },
       });
 
-      const schema = extendedOp.getResponseSchema('200');
+      const schema = client.op.response.getSchema('200');
 
       expect(schema).not.toBeNull();
       expect(schema?.properties).toHaveProperty('id');
@@ -170,7 +169,7 @@ describe('Response Schema Handling', () => {
         message: z.string(),
       });
 
-      const { extendedOp } = await createTestOperation({
+      const { client } = await createTestOperation({
         method: 'get',
         responseSchemas: {
           default: defaultSchema,
@@ -178,7 +177,7 @@ describe('Response Schema Handling', () => {
       });
 
       // Request a non-existent status code - should fall back to default
-      const schema = extendedOp.getResponseSchema('404');
+      const schema = client.op.response.getSchema('404');
 
       expect(schema).not.toBeNull();
       expect(schema?.properties).toHaveProperty('message');
@@ -202,7 +201,7 @@ describe('Response Schema Handling', () => {
         code: z.number(),
       });
 
-      const { extendedOp } = await createTestOperation({
+      const { client } = await createTestOperation({
         method: 'get',
         responseSchemas: {
           '200': successSchema,
@@ -210,7 +209,7 @@ describe('Response Schema Handling', () => {
         },
       });
 
-      const schemas = extendedOp.responseSchemas;
+      const schemas = client.op.response.schemas;
 
       assert('200' in schemas, '200 response schema not found');
       assert('400' in schemas, '400 response schema not found');
@@ -232,7 +231,7 @@ describe('Response Schema Handling', () => {
         code: z.number(),
       });
 
-      const { extendedOp } = await createTestOperation({
+      const { client, log } = await createTestOperation({
         method: 'get',
         responseSchemas: {
           '200': successSchema,
@@ -240,7 +239,7 @@ describe('Response Schema Handling', () => {
         },
       });
 
-      const schemas = extendedOp.zodResponseSchemas;
+      const schemas = zodResponseSchemas(client.op.response.schemas, { log });
 
       assert('200' in schemas, '200 response schema not found');
       assert('400' in schemas, '400 response schema not found');
@@ -256,17 +255,17 @@ describe('Response Schema Handling', () => {
      * This tests observable behavior without relying on internal implementation.
      */
     it('should cache response schemas for repeated access', async () => {
-      const { extendedOp } = await createTestOperation({
+      const { client } = await createTestOperation({
         method: 'get',
         responseSchemas: {
           '200': z.object({ property: z.string() }),
         },
       });
-      
+
       // Get the schema twice
-      const firstAccess = extendedOp.getResponseSchema('200');
-      const secondAccess = extendedOp.getResponseSchema('200');
-      
+      const firstAccess = client.op.response.getSchema('200');
+      const secondAccess = client.op.response.getSchema('200');
+
       // Verify both references point to the same object (caching is working)
       expect(secondAccess).toBe(firstAccess);
     });

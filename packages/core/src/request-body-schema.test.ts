@@ -6,15 +6,15 @@ import { describe, it, expect, assert } from 'vitest';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
-import { ExtendedOperation } from './parameter-mapper.ts';
-import type { OperationExtensions, PathOperation } from './parameter-mapper.ts';
+import { getJsonSchema, OperationClient } from './parameter-mapper.ts';
+import type { PathOperation } from './parameter-mapper.ts';
 import { HttpVerb } from './safety.ts';
 
 interface TestOperation {
   oas: Oas;
   log: LogLayer;
   operation: PathOperation;
-  extendedOp: ExtendedOperation;
+  client: OperationClient;
   testLogger: TestLoggingLibrary;
 }
 
@@ -103,31 +103,29 @@ describe('Request Body Schema Handling', () => {
 
     assert(verb, `Unsupported HTTP method: ${method}`);
 
-    const extensions: OperationExtensions = {};
-
     // Create ExtendedOperation instance
-    const extendedOp = ExtendedOperation.from(operation, extensions, { log });
+    const client = OperationClient.from(operation, {}, { log });
 
-    assert(extendedOp, 'Failed to create ExtendedOperation instance');
+    assert(client, 'Failed to create OperationClient instance');
 
     return {
       oas,
       log,
       operation,
-      extendedOp,
+      client,
       testLogger,
     };
   };
 
   describe('jsonSchema getter', () => {
     it('returns parameter schema for operations with no request body', () => {
-      const { extendedOp } = createTestOperation({
+      const { client, log } = createTestOperation({
         method: 'get',
         pathParams: ['id'],
         queryParams: ['filter'],
       });
 
-      const schema = extendedOp.jsonSchema;
+      const schema = getJsonSchema(client.op.inner, { log });
 
       expect(schema).not.toBeNull();
       expect(schema?.properties).toHaveProperty('id');
@@ -141,12 +139,12 @@ describe('Request Body Schema Handling', () => {
         age: z.number().optional(),
       });
 
-      const { extendedOp } = createTestOperation({
+      const { client, log } = createTestOperation({
         method: 'post',
         requestBodySchema: bodySchema,
       });
 
-      const schema = extendedOp.jsonSchema;
+      const schema = getJsonSchema(client.op.inner, { log });
 
       expect(schema).not.toBeNull();
       expect(schema?.properties).toHaveProperty('name');
@@ -160,14 +158,14 @@ describe('Request Body Schema Handling', () => {
         email: z.string().email(),
       });
 
-      const { extendedOp } = createTestOperation({
+      const { client, log } = createTestOperation({
         method: 'post',
         pathParams: ['id'],
         queryParams: ['filter'],
         requestBodySchema: bodySchema,
       });
 
-      const schema = extendedOp.jsonSchema;
+      const schema = getJsonSchema(client.op.inner, { log });
 
       expect(schema).not.toBeNull();
       expect(schema?.properties).toHaveProperty('id');
@@ -181,14 +179,14 @@ describe('Request Body Schema Handling', () => {
         data: z.string(),
       });
 
-      const { extendedOp } = createTestOperation({
+      const { client, log } = createTestOperation({
         method: 'post',
         requestBodySchema: bodySchema,
         contentType: 'application/xml',
       });
 
       // The implementation should fall back to application/json schema
-      const schema = extendedOp.jsonSchema;
+      const schema = getJsonSchema(client.op.inner, { log });
 
       expect(schema).not.toBeNull();
       expect(schema?.properties).toHaveProperty('data');
@@ -196,9 +194,9 @@ describe('Request Body Schema Handling', () => {
 
     it('returns null when no schemas are found', () => {
       // Create a GET operation with no parameters
-      const { extendedOp } = createTestOperation({ method: 'get' });
+      const { client, log } = createTestOperation({ method: 'get' });
 
-      const schema = extendedOp.jsonSchema;
+      const schema = getJsonSchema(client.op.inner, { log });
 
       expect(schema).toBeNull();
     });
@@ -206,15 +204,15 @@ describe('Request Body Schema Handling', () => {
 
   describe('schema property access', () => {
     it('correctly identifies operations with parameters', () => {
-      const { extendedOp: withParams } = createTestOperation({
+      const { client: withParams } = createTestOperation({
         method: 'get',
         pathParams: ['id'],
         queryParams: ['filter'],
       });
-      const { extendedOp: withoutParams } = createTestOperation({ method: 'get' });
+      const { client: withoutParams } = createTestOperation({ method: 'get' });
 
-      expect(withParams.hasParameters).toBe(true);
-      expect(withoutParams.hasParameters).toBe(false);
+      expect(withParams.op.parameters).not.toBeNull();
+      expect(withoutParams.op.parameters).toBeNull();
     });
 
     it('correctly transforms schemas to Zod raw shapes', () => {
@@ -223,13 +221,13 @@ describe('Request Body Schema Handling', () => {
         age: z.number().optional(),
       });
 
-      const { extendedOp } = createTestOperation({
+      const { client } = createTestOperation({
         method: 'post',
         pathParams: ['id'],
         requestBodySchema: bodySchema,
       });
 
-      const params = extendedOp.parameters;
+      const params = client.op.parameters;
 
       assert(params, 'Parameters should not be null');
 

@@ -22,7 +22,9 @@ export default defineConfig({
     },
     include: [`${root}/packages/*/src/**/*.test.ts`, `${root}/tests/src/**/*.test.ts`],
     includeSource: [`${root}/packages/*/src/**/*.ts`],
+
     coverage: {
+      enabled: true,
       provider: 'istanbul',
       reporter: ['text', 'json', 'html'],
     },

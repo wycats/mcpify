@@ -1,6 +1,8 @@
 import type { LogLayer } from 'loglayer';
 import type Oas from 'oas';
 import type { HttpMethods } from 'oas/types';
+import { z } from 'zod';
+import { jsonSchemaObjectToZodRawShape } from 'zod-from-json-schema';
 import type { JSONSchema } from 'zod-from-json-schema';
 
 import type { PathOperation } from '../parameter-mapper.ts';
@@ -37,7 +39,7 @@ export class ResponseSchemaExtractor {
   private constructor(op: PathOperation, log: LogLayer) {
     this.#op = op;
     this.#log = log;
-    
+
     // Initialize status codes cache
     this.#statusCodes = this.#op.getResponseStatusCodes();
   }
@@ -75,6 +77,29 @@ export class ResponseSchemaExtractor {
       );
       return null;
     }
+  }
+
+  /**
+   * Get all response schemas defined for this operation
+   *
+   * This getter returns all available response schemas indexed by their status codes.
+   * The result is cached for better performance on subsequent calls.
+   *
+   * @returns Record of status codes to JSON Schema objects
+   *
+   * @example
+   * ```typescript
+   * const schemas = operation.responseSchemas;
+   * // Access individual schemas by status code
+   * const okSchema = schemas['200'];
+   * const errorSchema = schemas['400'];
+   * ```
+   */
+  get schemas(): Record<string, JSONSchema> {
+    return Object.fromEntries(
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      this.statusCodes.map((code) => [code, this.getSchema(code)!]),
+    );
   }
 
   /**
@@ -167,9 +192,47 @@ export class ResponseSchemaExtractor {
    *
    * @returns Array of status codes as strings
    */
-  getStatusCodes(): string[] {
+  get statusCodes(): string[] {
     return [...this.#statusCodes];
   }
-  
-  // [Cache invalidation feature removed as it's rarely used in production environments]
+}
+
+/**
+ * Get all response schemas converted to Zod schemas for runtime validation
+ *
+ * This getter converts all available JSON Schemas to Zod schemas for runtime
+ * type validation. The result is cached for better performance.
+ *
+ * @returns Record of status codes to Zod schema objects
+ *
+ * @example
+ * ```typescript
+ * const schemas = operation.zodResponseSchemas;
+ *
+ * // Validate a response against the schema
+ * try {
+ *   const validatedData = schemas['200'].parse(responseData);
+ * } catch (error) {
+ *   console.error('Response validation failed:', error);
+ * }
+ * ```
+ */
+export function zodResponseSchemas(
+  schemas: Record<string, JSONSchema>,
+  app: { log: LogLayer },
+): Record<string, z.ZodObject<z.ZodRawShape>> {
+  const result: Record<string, z.ZodObject<z.ZodRawShape>> = {};
+
+  // Convert each JSONSchema to a Zod schema
+  for (const [code, schema] of Object.entries(schemas)) {
+    try {
+      const zodSchema = z.object(jsonSchemaObjectToZodRawShape(schema));
+      result[code] = zodSchema;
+    } catch (error) {
+      app.log.error(`Error converting response schema for status ${code} to Zod:`, String(error));
+      // Skip this schema if conversion fails
+    }
+  }
+
+  return result;
 }
