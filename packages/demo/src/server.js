@@ -49,7 +49,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: 'http://localhost:3000',
+        url: 'http://localhost:3001',
         description: 'Development server',
       },
     ],
@@ -239,17 +239,17 @@ app.get('/users/:id', (req, res) => {
 app.delete('/users/:id', (req, res) => {
   const id = parseInt(req.params.id);
   const index = users.findIndex((user) => user.id === id);
-  
+
   if (index === -1) {
     return res.status(404).json({ message: 'User not found' });
   }
-  
+
   // Remove the user from the array
   const deletedUser = users.splice(index, 1)[0];
-  
-  res.json({ 
+
+  res.json({
     message: `User ${deletedUser.name} (ID: ${deletedUser.id}) successfully deleted`,
-    deletedUser
+    deletedUser,
   });
 });
 

@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000",
+      "url": "http://localhost:3001",
       "description": "Development server"
     }
   ],
@@ -31,9 +31,7 @@
         "summary": "Retrieve a list of users",
         "description": "Returns a list of all users",
         "operationId": "listUsers",
-        "tags": [
-          "Users"
-        ],
+        "tags": ["Users"],
         "responses": {
           "200": {
             "description": "A list of users",
@@ -54,19 +52,14 @@
         "summary": "Create a new user",
         "description": "Adds a new user to the system",
         "operationId": "createUser",
-        "tags": [
-          "Users"
-        ],
+        "tags": ["Users"],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "name",
-                  "email"
-                ],
+                "required": ["name", "email"],
                 "properties": {
                   "name": {
                     "type": "string",
@@ -78,10 +71,7 @@
                   },
                   "role": {
                     "type": "string",
-                    "enum": [
-                      "admin",
-                      "user"
-                    ],
+                    "enum": ["admin", "user"],
                     "default": "user",
                     "description": "User's role in the system"
                   }
@@ -112,9 +102,7 @@
         "summary": "Get a user by ID",
         "description": "Returns a single user by ID",
         "operationId": "getUserById",
-        "tags": [
-          "Users"
-        ],
+        "tags": ["Users"],
         "parameters": [
           {
             "in": "path",
@@ -148,9 +136,7 @@
         "summary": "Retrieve a list of products",
         "description": "Returns a list of all products",
         "operationId": "listProducts",
-        "tags": [
-          "Products"
-        ],
+        "tags": ["Products"],
         "responses": {
           "200": {
             "description": "A list of products",
@@ -171,19 +157,14 @@
         "summary": "Create a new product",
         "description": "Adds a new product to the system",
         "operationId": "createProduct",
-        "tags": [
-          "Products"
-        ],
+        "tags": ["Products"],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "name",
-                  "price"
-                ],
+                "required": ["name", "price"],
                 "properties": {
                   "name": {
                     "type": "string",
@@ -228,9 +209,7 @@
         "summary": "Get a product by ID",
         "description": "Returns a single product by ID",
         "operationId": "getProductById",
-        "tags": [
-          "Products"
-        ],
+        "tags": ["Products"],
         "parameters": [
           {
             "in": "path",
@@ -264,20 +243,14 @@
         "summary": "Create a new order",
         "description": "Places a new order for a product",
         "operationId": "createOrder",
-        "tags": [
-          "Orders"
-        ],
+        "tags": ["Orders"],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "userId",
-                  "productId",
-                  "quantity"
-                ],
+                "required": ["userId", "productId", "quantity"],
                 "properties": {
                   "userId": {
                     "type": "integer",
@@ -320,9 +293,7 @@
         "summary": "Retrieve a list of orders",
         "description": "Returns a list of all orders",
         "operationId": "listOrders",
-        "tags": [
-          "Orders"
-        ],
+        "tags": ["Orders"],
         "responses": {
           "200": {
             "description": "A list of orders",
@@ -345,9 +316,7 @@
         "summary": "Get an order by ID",
         "description": "Returns a single order by ID",
         "operationId": "getOrderById",
-        "tags": [
-          "Orders"
-        ],
+        "tags": ["Orders"],
         "parameters": [
           {
             "in": "path",
@@ -381,9 +350,7 @@
         "summary": "Update an order's status",
         "description": "Updates the status of an existing order",
         "operationId": "updateOrderStatus",
-        "tags": [
-          "Orders"
-        ],
+        "tags": ["Orders"],
         "parameters": [
           {
             "in": "path",
@@ -401,17 +368,11 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "status"
-                ],
+                "required": ["status"],
                 "properties": {
                   "status": {
                     "type": "string",
-                    "enum": [
-                      "pending",
-                      "completed",
-                      "cancelled"
-                    ],
+                    "enum": ["pending", "completed", "cancelled"],
                     "description": "New status for the order"
                   }
                 }
@@ -444,11 +405,7 @@
     "schemas": {
       "User": {
         "type": "object",
-        "required": [
-          "id",
-          "name",
-          "email"
-        ],
+        "required": ["id", "name", "email"],
         "properties": {
           "id": {
             "type": "integer",
@@ -464,21 +421,14 @@
           },
           "role": {
             "type": "string",
-            "enum": [
-              "admin",
-              "user"
-            ],
+            "enum": ["admin", "user"],
             "description": "The user's role"
           }
         }
       },
       "Product": {
         "type": "object",
-        "required": [
-          "id",
-          "name",
-          "price"
-        ],
+        "required": ["id", "name", "price"],
         "properties": {
           "id": {
             "type": "integer",
@@ -504,12 +454,7 @@
       },
       "Order": {
         "type": "object",
-        "required": [
-          "id",
-          "userId",
-          "productId",
-          "quantity"
-        ],
+        "required": ["id", "userId", "productId", "quantity"],
         "properties": {
           "id": {
             "type": "integer",
@@ -529,11 +474,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "pending",
-              "completed",
-              "cancelled"
-            ],
+            "enum": ["pending", "completed", "cancelled"],
             "description": "The order status"
           }
         }
