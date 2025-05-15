@@ -1,4 +1,7 @@
 name: Pull Request Validation
+permissions:
+  contents: read
+  pull-requests: write
 
 on:
   pull_request:
@@ -16,10 +19,10 @@ jobs:
       - uses: wyvox/action-setup-pnpm@v3
         with:
           node-version: 18
-      
+
       - name: Install dependencies
         run: pnpm install
-      
+
       # Enforce conventional commits in PR title
       - name: Validate PR title
         uses: amannn/action-semantic-pull-request@v5
@@ -35,26 +38,26 @@ jobs:
             refactor
             test
             chore
-      
+
       # Check for lint issues
       - name: Run ESLint
         run: pnpm lint:strict
-      
+
       # Run TypeScript checks
       - name: Type check
         run: |
           pnpm --filter "@mcpify/core" typecheck
           pnpm --filter "@mcpify/demo" typecheck
           pnpm --filter "@mcpify/tests" typecheck
-      
+
       # Build verification
       - name: Build packages
         run: pnpm build
-      
+
       # Run tests with timing to identify slow tests
       - name: Run tests with performance checks
         run: pnpm test -- --reporter=verbose
-      
+
       # Generate test coverage
       - name: Run tests with coverage
         run: pnpm test:coverage
@@ -62,13 +65,13 @@ jobs:
         with:
           files: ./coverage/coverage-final.json
           fail_ci_if_error: false
-      
+
       # Check for excessive dependencies being added
       - name: Check for dependency changes
         uses: hiwelo/new-dependencies-action@1.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       # Post PR comment with validation results
       - name: Post validation results
         if: always()
@@ -78,7 +81,7 @@ jobs:
             const status = '${{ job.status }}';
             const emoji = status === 'success' ? '✅' : '❌';
             const header = `## ${emoji} PR Validation Results`;
-            
+
             const details = [
               '### Code Quality Checks',
               '- **Conventional Commit Format**: ' + (status === 'success' ? 'Passed' : 'Failed'),
@@ -88,7 +91,7 @@ jobs:
               '',
               'Please ensure all tests pass and code quality checks are addressed before merging.',
             ].join('\n');
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
