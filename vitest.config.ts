@@ -10,7 +10,11 @@ export default defineConfig({
     root,
     globals: true,
     environment: 'node',
-    setupFiles: ['./tests/src/setup/log-matchers.ts', './tests/src/setup/request-matcher.ts'],
+    setupFiles: [
+      './tests/src/setup/log-matchers.ts',
+      './tests/src/setup/request-matcher.ts',
+      './tests/src/setup/tool-result-matcher.ts',
+    ],
     chaiConfig: {
       truncateThreshold: 0, // 0 = disable truncation completely
     },

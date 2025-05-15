@@ -1,6 +1,6 @@
 # 🔄 MCPify
 
-🛠️ A dynamic proxy that converts OpenAPI Specification (OAS) endpoints into Message Communication Protocol (MCP) tools on the fly.
+🛠️ A dynamic proxy that converts OpenAPI Specification (OAS) endpoints into Model Context Protocol (MCP) tools on the fly.
 
 ## 🌟 Overview
 

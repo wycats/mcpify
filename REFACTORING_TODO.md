@@ -19,12 +19,14 @@ The codebase currently handles schema processing in multiple places. Consider cr
 
 ## Class Structure Refinement
 
-The `ExtendedOperation` class has grown quite large with many responsibilities. Consider:
+The refactoring from `ExtendedOperation` to `OperationClient` has greatly improved the separation of concerns. However, there are still opportunities for further refinement:
 
-- [ ] Breaking it into smaller, focused classes with single responsibilities
-- [ ] Using composition over inheritance for improved maintainability
-- [ ] Creating separate handlers for parameters, responses, and requests
-- [ ] Extracting the parameter handling logic into a dedicated class
+- [x] Breaking it into smaller, focused classes with single responsibilities
+- [x] Using composition over inheritance for improved maintainability
+- [ ] Further separating responsibilities in `OperationClient`:
+  - [x] Extract the response handling logic into a dedicated class
+  - [ ] Consider separating resource reading from operation invocation
+  - [ ] Move request building concerns to a specialized builder class
 
 ## Request Building Improvements
 
