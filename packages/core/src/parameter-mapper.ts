@@ -10,7 +10,8 @@ import { jsonSchemaObjectToZodRawShape } from 'zod-from-json-schema';
 import { CustomExtensions } from './operation/custom-extensions.ts';
 import type { CustomExtensionsInterface } from './operation/custom-extensions.ts';
 import { McpifyOperation } from './operation/ext.ts';
-import { buildRequest, buildRequestInit } from './request/request-builder.ts';
+import { buildRequest } from './request/request-builder.ts';
+import { ResponseHandler } from './response/response-handler.ts';
 
 export type PathOperations = ReturnType<Oas['getPaths']>[string];
 export type PathOperation = PathOperations[keyof PathOperations];
@@ -31,6 +32,7 @@ export class OperationClient {
 
   #ext: McpifyOperation;
   #app: { log: LogLayer };
+  #responseHandler: ResponseHandler;
 
   private constructor(
     app: { log: LogLayer },
@@ -39,6 +41,7 @@ export class OperationClient {
   ) {
     this.#app = app;
     this.#ext = McpifyOperation.from(operation, extensions, app);
+    this.#responseHandler = new ResponseHandler(app.log, this.#ext);
   }
 
   get op(): McpifyOperation {
@@ -46,74 +49,49 @@ export class OperationClient {
   }
 
   #buildRequest(args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>): Request {
-    const harData = this.#ext.bucketArgs(args);
+    const bucketed = this.#ext.bucketArgs(args);
 
-    this.#app.log.debug('Calling operation with HAR Data', JSON.stringify(harData, null, 2));
+    this.#app.log.trace('Calling operation with args', JSON.stringify(bucketed, null, 2));
 
-    // 1) Get the minimal HAR entry
     const request = buildRequest(this.#app, this.#ext, args);
 
-    this.#app.log.debug('Calling operation with HAR Data', JSON.stringify(request, null, 2));
+    this.#app.log.trace('Calling operation with request', JSON.stringify(request, null, 2));
 
     return request;
   }
 
-  async invoke(args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>): Promise<CallToolResult> {
+  /**
+   * Executes a network request with the given arguments and returns the raw response
+   * @param args The arguments to pass to the operation
+   */
+  async #executeRequest(args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>): Promise<Response> {
     const request = this.#buildRequest(args);
+    return fetch(request);
+  }
 
-    const response = await fetch(request);
+  /**
+   * Invokes the operation as a tool call
+   * @param args The arguments to pass to the operation
+   * @returns A CallToolResult object representing the response
+   */
+  async invoke(args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>): Promise<CallToolResult> {
+    const response = await this.#executeRequest(args);
 
     if (response.status >= 400) {
-      return {
-        isError: true,
-        content: [
-          {
-            type: 'text',
-            text: await response.text(),
-          },
-        ],
-      };
+      return this.#responseHandler.handleErrorResponse(response);
     }
 
-    return toResponseContent(response, this.#app.log, this.#ext);
+    return this.#responseHandler.handleToolResponse(response);
   }
 
+  /**
+   * Reads a resource using the operation
+   * @param args The arguments to pass to the operation
+   * @returns A ReadResourceResult object representing the resource content
+   */
   async read(args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>): Promise<ReadResourceResult> {
-    const bucketed = this.#ext.bucketArgs(args);
-
-    this.#app.log.debug('Calling operation with Request Init', JSON.stringify(bucketed, null, 2));
-
-    // 1) Get the minimal HAR entry
-    const { init, url } = buildRequestInit(this.#app, this.#ext, bucketed);
-
-    this.#app.log.debug('Calling operation with Request Init', JSON.stringify(init, null, 2));
-
-    const request = new Request(url, init);
-
-    // 3) Fire it off
-    const response = await fetch(request);
-
-    return this.#readResource(response);
-  }
-
-  async #readResource(response: Response): Promise<ReadResourceResult> {
-    const mime = response.headers.get('Content-Type');
-    if (isText(this.#ext.inner)) {
-      return {
-        contents: [
-          { uri: response.url, mimeType: mime ?? 'text/plain', text: await response.text() },
-        ],
-      };
-    } else {
-      const blob = await response.arrayBuffer();
-      // base64 encode
-      const encoded = Buffer.from(blob).toString('base64');
-      return {
-        contents: [
-          { uri: response.url, mimeType: mime ?? 'application/octet-stream', blob: encoded },
-        ],
-      };
-    }
+    const response = await this.#executeRequest(args);
+    return this.#responseHandler.handleResourceResponse(response);
   }
 }
 
@@ -317,10 +295,7 @@ export function getJsonSchema(oas: Operation, app: { log: LogLayer }): JSONSchem
   return null;
 }
 
-export function isText(op: PathOperation): boolean {
-  const format = op.getResponseAsJSONSchema(200).format;
-  return format !== 'binary';
-}
+// isText function moved to response/response-handler.ts
 
 export function getParameters(op: PathOperation, app: { log: LogLayer }): z.ZodRawShape | null {
   // Get parameter schemas
@@ -364,63 +339,4 @@ export function getParameters(op: PathOperation, app: { log: LogLayer }): z.ZodR
   return null;
 }
 
-async function toResponseContent(
-  response: Response,
-  log: LogLayer,
-  ext: McpifyOperation,
-): Promise<CallToolResult> {
-  switch (ext.responseType) {
-    case 'text/plain': {
-      const text = await response.text();
-      log.info(`Response from ${ext.describe()}:`, text);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text,
-          },
-        ],
-      };
-    }
-
-    case 'application/json': {
-      const json = await response.json();
-      log.info(`Response from ${ext.describe()}:`, JSON.stringify(json));
-
-      // TODO: Limit the special-case embedding to situations where we know for sure that
-      // we have a mapped resource.
-      return {
-        content: [
-          {
-            type: 'resource',
-            resource: {
-              uri: response.url,
-              mimeType: ext.responseType,
-              text: JSON.stringify(json),
-            },
-          },
-        ],
-      };
-    }
-
-    case 'application/x-www-form-urlencoded': {
-      const formData = await response.formData();
-      const search = new URLSearchParams(Object.entries(formData));
-      log.info(`Response from ${ext.describe()}:`, JSON.stringify(formData));
-
-      return {
-        content: [
-          {
-            type: 'resource',
-            resource: {
-              uri: response.url,
-              mimeType: ext.responseType,
-              text: String(search),
-            },
-          },
-        ],
-      };
-    }
-  }
-}
+// toResponseContent function moved to response/response-handler.ts
