@@ -104,7 +104,6 @@ describe('ResponseHandler', () => {
           {
             type: 'resource',
             resource: {
-              text: JSON.stringify(jsonData),
               json: jsonData,
             },
           },

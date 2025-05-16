@@ -9,10 +9,15 @@ interface ContentText {
 
 interface ContentResource {
   type: 'resource';
-  resource?: {
-    text?: string | RegExp;
-    json?: Record<string, unknown>;
-  };
+  resource?:
+    | {
+        text: string | RegExp;
+        json?: never;
+      }
+    | {
+        json?: Record<string, unknown>;
+        text?: never;
+      };
 }
 
 interface ResourceContentInfo {
