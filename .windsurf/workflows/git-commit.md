@@ -1,30 +1,41 @@
 ---
-description: Commit changes to git
+description: Help write a commit message for staged changes
 ---
 
-Assume that the user has already staged the changes they wish to commit, has run `git commit -v`, and has their cursor in `COMMIT_EDITMSG`.
+## Context
 
-Review the contents of the temporary `COMMIT_EDITMSG` and modify it to include a commit message
+This workflow is triggered when the user has already:
 
-**Benefits:**
+1. Staged their changes with `git add`
+2. Run `git commit -v` to start the commit process
+3. Has their editor open with the `COMMIT_EDITMSG` file
 
-- Shows a diff of all changes in your commit at the bottom of the editor
-- Allows you to review what you're committing while writing the message
-- Helps write more accurate and detailed commit messages
-- Provides a final opportunity to verify changes before committing
+## Workflow Instructions
 
-This workflow creates a commit message, and assumes that the user is running `git` commands themselves.
+1. **Read the existing content** of `COMMIT_EDITMSG` which contains:
 
-Specifically:
+   - A commented-out diff of the staged changes (from `-v` flag)
+   - Potentially some pre-filled commit message content
 
-- The user will run this workflow _after_ staging files to run.
-- The user will run this workflow _after_ running `git commit -v`, while `git commit` is waiting for the file to close.
-- The user will close the file themselves, which will continue the commit process.
-- The user will push the commit themselves.
+2. **DO NOT** run any git commands (like `git diff --cached` or `git status`)
 
-Read the contents of `COMMIT_EDITMSG` and use them as the main source of information for the commit message. Write a commit message for the user.
+   - All necessary information is already in `COMMIT_EDITMSG`
+   - The user has already staged exactly what they want to commit
 
-### Commit Message Format
+3. **Help the user craft a commit message** that:
+
+   - Follows the Conventional Commits standard
+   - Accurately summarizes the changes shown in the diff
+   - Uses appropriate type and scope based on the changes
+
+4. **Provide clear instructions** for the user to:
+   - Save the commit message
+   - Close the editor to complete the commit
+   - Push their changes if needed
+
+## Commit Message Format
+
+Follow these guidelines for the commit message:
 
 We follow the [Conventional Commits](https://www.conventionalcommits.org/) standard for commit messages:
 
