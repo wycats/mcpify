@@ -1,0 +1,12 @@
+# Unlabeled Changes
+
+* `@mcpify/core`
+  * [#7](https://github.com/wycats/mcpify/pull/7) refactor(core): convert ResponseHandler to functional approach ([@wycats](https://github.com/wycats))
+  * [#5](https://github.com/wycats/mcpify/pull/5) refactor(client): separate resource reading from operation invocation ([@wycats](https://github.com/wycats))
+  * [#4](https://github.com/wycats/mcpify/pull/4) refactor: Move response handling to a dedicated class ([@wycats](https://github.com/wycats))
+* Other
+  * [#6](https://github.com/wycats/mcpify/pull/6) chore: Improve git-commit instructions ([@wycats](https://github.com/wycats))
+  * [#2](https://github.com/wycats/mcpify/pull/2) chore: add refactoring todo ([@wycats](https://github.com/wycats))
+
+
+*Cannot plan release until the above changes are labeled*.
