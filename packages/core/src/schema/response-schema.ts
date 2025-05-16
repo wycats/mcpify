@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { jsonSchemaObjectToZodRawShape } from 'zod-from-json-schema';
 import type { JSONSchema } from 'zod-from-json-schema';
 
-import type { PathOperation } from '../parameter-mapper.ts';
+import type { PathOperation } from '../client.ts';
 
 export interface OpPointer {
   path: string;

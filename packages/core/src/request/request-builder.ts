@@ -43,21 +43,16 @@ export function buildRequestInit(
 ): { init: RequestInit; url: URL } {
   app.log.trace('Specified args', JSON.stringify(args, null, 2));
 
-  // Check if args is already bucketed or needs to be bucketed
   const bucketed = op.bucketArgs(args as JsonObject);
 
   app.log.trace('Using bucketed args', JSON.stringify(bucketed, null, 2));
 
-  // Extract the base URL from the OAS specification
   const baseUrl = getBaseUrl(op.oas);
 
-  // Log what we were able to find
   app.log.debug(`Base URL resolution result: ${baseUrl || '(empty)'}`);
 
-  // Extract the path from the operation
   const path = op.path;
 
-  // Log detailed path information
   app.log.trace(`Original operation path: ${path}`);
   app.log.trace(`Operation method: ${op.verb.uppercase}`);
   app.log.trace(`Operation ID: ${op.id}`);

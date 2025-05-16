@@ -17,37 +17,53 @@ export class ResponseHandler {
   }
 
   /**
-   * Processes an error response
-   * @param response The error response to process
-   * @returns A CallToolResult representing the error
-   */
-  async handleErrorResponse(response: Response): Promise<CallToolResult> {
-    return {
-      isError: true,
-      content: [
-        {
-          type: 'text',
-          text: await response.text(),
-        },
-      ],
-    };
-  }
-
-  /**
-   * Processes a successful response for tool calls
+   * Processes a response for tool calls.
+   *
+   * If the response is successful, it will be processed based on the operation's
+   * response type. If the response is an error, it will be processed as text.
+   *
    * @param response The successful response to process
    * @returns A CallToolResult representing the successful response
    */
   async handleToolResponse(response: Response): Promise<CallToolResult> {
+    if (response.status >= 400) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: await response.text(),
+          },
+        ],
+      };
+    }
+
     return toResponseContent(response, this.#log, this.#operation);
   }
 
   /**
-   * Processes a response for resource reading
+   * Processes a response for resource reading.
+   *
+   * If the response is successful, it will be processed based on the operation's
+   * response type. If the response is an error, it will be processed as text.
+   *
    * @param response The response to process
    * @returns A ReadResourceResult representing the resource contents
    */
   async handleResourceResponse(response: Response): Promise<ReadResourceResult> {
+    if (response.status >= 400) {
+      return {
+        isError: true,
+        contents: [
+          {
+            uri: response.url,
+            mimeType: response.headers.get('Content-Type') ?? 'text/plain',
+            text: await response.text(),
+          },
+        ],
+      };
+    }
+
     const mime = response.headers.get('Content-Type');
 
     if (isText(this.#operation.inner)) {

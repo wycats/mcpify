@@ -8,12 +8,14 @@ import type { OASDocument } from 'oas/types';
 import OASNormalize from 'oas-normalize';
 import type { z } from 'zod';
 
+import { OperationClient } from './client.ts';
+import type { PathOperation } from './client.ts';
 import { log } from './log.ts';
 import type { App } from './main.ts';
 import { CustomExtensions } from './operation/custom-extensions.ts';
 import type { CustomExtensionsInterface } from './operation/custom-extensions.ts';
-import { getParameters, OperationClient } from './parameter-mapper.ts';
-import type { PathOperation } from './parameter-mapper.ts';
+import { McpifyOperation } from './operation/ext.ts';
+import { getParameters } from './parameter-mapper.ts';
 import { HttpVerb } from './safety.ts';
 
 export interface OpenApiSpecOptions {
@@ -65,10 +67,10 @@ export class OpenApiSpec {
     if (!verb) return null;
 
     const extensions = normalizeExtensions(this.#spec.getExtension('x-mcpify', operation));
-    return OperationClient.from(operation, extensions, this.#app);
+    return OperationClient.tool(this.#app, McpifyOperation.from(operation, extensions, this.#app));
   }
 
-  get #paths(): OperationClient[] {
+  get #tools(): OperationClient<CallToolResult>[] {
     const paths = this.#spec.getPaths();
     if (Object.keys(paths).length === 0) {
       this.#log.warn('No paths found in the OpenAPI specification');
@@ -82,7 +84,7 @@ export class OpenApiSpec {
   }
 
   createResources(server: McpServer): void {
-    const resources = this.#paths.filter((client) => client.op.isResource);
+    const resources = this.#tools.filter((client) => client.op.isResource);
 
     for (const client of resources) {
       const path = client.op.path;
@@ -95,7 +97,7 @@ export class OpenApiSpec {
           `Converting ${client.op.describe()} → ${client.op.verb.describe()} resource "${client.op.id}"`,
         );
         server.resource(client.op.id, uriTemplate, async (_, args): Promise<ReadResourceResult> => {
-          return client.read(args);
+          return client.toResource().invoke(args);
         });
       } else {
         this.#log.debug(
@@ -105,7 +107,7 @@ export class OpenApiSpec {
           client.op.id,
           `${this.#spec.url()}${path}`,
           async (_, args): Promise<ReadResourceResult> => {
-            return client.read(args);
+            return client.toResource().invoke(args);
           },
         );
       }
@@ -115,7 +117,7 @@ export class OpenApiSpec {
   createTools(server: McpServer): void {
     let endpointCount = 0;
 
-    const tools = this.#paths.filter((client) => !client.op.ignoredWhen({ type: 'tool' }));
+    const tools = this.#tools.filter((client) => !client.op.ignoredWhen({ type: 'tool' }));
 
     for (const client of tools) {
       endpointCount++;
