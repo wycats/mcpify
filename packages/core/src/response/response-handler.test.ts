@@ -1,10 +1,12 @@
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
+import type { LogLayer } from 'loglayer';
 import { describe, expect, it } from 'vitest';
 
+import type { McpifyOperation } from '../operation/ext.ts';
 import { testApp } from '../test/create-oas.ts';
 import { createTestOp } from '../test/create-test-op.ts';
 
-import { ResponseHandler, isText } from './response-handler.ts';
+import { handleToolResponse, handleResourceResponse, isText } from './response-handler.ts';
 
 /**
  * Create a test Response object with the specified properties
@@ -25,9 +27,12 @@ function createTestResponse(
 }
 
 /**
- * Set up a ResponseHandler with the specified content type
+ * Set up response handler functions and dependencies with the specified content type
  */
-function setupHandler(contentType: string): ResponseHandler {
+function setupHandlers(contentType: string): {
+  app: { log: LogLayer };
+  operation: McpifyOperation;
+} {
   // Create test app with real logger
   const { app } = testApp();
 
@@ -35,23 +40,24 @@ function setupHandler(contentType: string): ResponseHandler {
   // We use {} for params (no parameters) and set content type in options
   const op = createTestOp('get', {}, undefined, { contentType });
 
-  return new ResponseHandler(app.log, op.op);
+  // Return both the dependencies and functions for testing
+  return { app, operation: op.op };
 }
 
 describe('ResponseHandler', () => {
   // No need for global app instance in this test suite
 
-  describe('handleErrorResponse', () => {
+  describe('handleToolResponse', () => {
     it('should handle error responses', async () => {
       // Arrange
-      const handler = setupHandler('text/plain');
+      const { app, operation } = setupHandlers('text/plain');
       const errorResponse = createTestResponse('Error message', 400);
 
       // Act
-      const result = await handler.handleToolResponse(errorResponse);
+      const result = await handleToolResponse(errorResponse, app.log, operation);
 
       // Assert
-      expect(result).toMatchToolResult({
+      expect(result).toEqual({
         isError: true,
         content: [
           {
@@ -66,14 +72,14 @@ describe('ResponseHandler', () => {
   describe('handleToolResponse', () => {
     it('should handle text/plain responses', async () => {
       // Arrange
-      const handler = setupHandler('text/plain');
+      const { app, operation } = setupHandlers('text/plain');
       const response = createTestResponse('Hello world');
 
       // Act
-      const result = await handler.handleToolResponse(response);
+      const result = await handleToolResponse(response, app.log, operation);
 
       // Assert
-      expect(result).toMatchToolResult({
+      expect(result).toEqual({
         content: [
           {
             type: 'text',
@@ -85,20 +91,21 @@ describe('ResponseHandler', () => {
 
     it('should handle application/json responses', async () => {
       // Arrange
-      const handler = setupHandler('application/json');
+      const { app, operation } = setupHandlers('application/json');
       const jsonData = { message: 'Hello JSON' };
       const response = createTestResponse(JSON.stringify(jsonData), 200, 'application/json');
 
       // Act
-      const result = await handler.handleToolResponse(response);
+      const result = await handleToolResponse(response, app.log, operation);
 
       // Assert
-      expect(result).toMatchToolResult({
-        content: [
+      expect(result).toMatchMcpResult({
+        tool: [
           {
             type: 'resource',
             resource: {
               text: JSON.stringify(jsonData),
+              json: jsonData,
             },
           },
         ],
@@ -135,8 +142,8 @@ describe('ResponseHandler', () => {
 
       // Assert
       // Test that our matcher correctly handles regex patterns for text fields
-      expect(result).toMatchToolResult({
-        content: [
+      expect(result).toMatchMcpResult({
+        tool: [
           {
             type: 'resource',
             resource: {
@@ -156,7 +163,8 @@ describe('ResponseHandler', () => {
       contentType: string,
     ): {
       response: Response;
-      handler: ResponseHandler;
+      app: { log: LogLayer };
+      operation: McpifyOperation;
       executeTest: () => Promise<ReadResourceResult>;
     } => {
       // Create a test app with logging
@@ -168,14 +176,11 @@ describe('ResponseHandler', () => {
       // Create a test operation with the content type
       const { op } = createTestOp('get', {}, undefined, { contentType });
 
-      // Create a handler using real implementation
-      const handler = new ResponseHandler(app.log, op);
-
       return {
         response,
-        handler,
-        // Helper to execute the test with real implementation
-        executeTest: async () => await handler.handleResourceResponse(response),
+        app,
+        operation: op,
+        executeTest: () => handleResourceResponse(response, app.log, op),
       };
     };
 
@@ -189,8 +194,8 @@ describe('ResponseHandler', () => {
 
       // Assert - check for expected content using type-safe assertion
       // We're only checking the parts we care about to avoid fragile tests
-      expect(result).toMatchToolResult({
-        contents: [
+      expect(result).toMatchMcpResult({
+        resource: [
           {
             mimeType: 'text/plain',
             text: content,
@@ -210,8 +215,8 @@ describe('ResponseHandler', () => {
 
       // Assert - check for binary handling using type-safe assertion
       // For binary content we just verify the mime type is preserved
-      expect(result).toMatchToolResult({
-        contents: [
+      expect(result).toMatchMcpResult({
+        resource: [
           {
             mimeType: 'application/octet-stream',
             // When testing binary content, we focus on the mime type

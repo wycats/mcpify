@@ -7,7 +7,7 @@ import { CustomExtensions } from './operation/custom-extensions.ts';
 import type { CustomExtensionsInterface } from './operation/custom-extensions.ts';
 import { McpifyOperation } from './operation/ext.ts';
 import { buildRequest } from './request/request-builder.ts';
-import { ResponseHandler } from './response/response-handler.ts';
+import { handleToolResponse, handleResourceResponse } from './response/response-handler.ts';
 
 export type IntoOperationExtensions = CustomExtensionsInterface | CustomExtensions;
 export type PathOperation = Operation;
@@ -19,9 +19,8 @@ type InvokeResult = CallToolResult | ReadResourceResult;
  */
 export class OperationClient<T extends InvokeResult = InvokeResult> {
   static tool(app: { log: LogLayer }, operation: McpifyOperation): OperationClient<CallToolResult> {
-    const responseHandler = new ResponseHandler(app.log, operation);
     return new OperationClient(app, operation, async (response) => {
-      return responseHandler.handleToolResponse(response);
+      return handleToolResponse(response, app.log, operation);
     });
   }
 
@@ -29,9 +28,8 @@ export class OperationClient<T extends InvokeResult = InvokeResult> {
     app: { log: LogLayer },
     operation: McpifyOperation,
   ): OperationClient<ReadResourceResult> {
-    const responseHandler = new ResponseHandler(app.log, operation);
     return new OperationClient(app, operation, async (response) => {
-      return responseHandler.handleResourceResponse(response);
+      return handleResourceResponse(response, app.log, operation);
     });
   }
 
