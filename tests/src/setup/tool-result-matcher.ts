@@ -9,22 +9,28 @@ interface ContentText {
 
 interface ContentResource {
   type: 'resource';
-  resource?: {
-    text?: string | RegExp;
-    json?: Record<string, unknown>;
-  };
+  resource?:
+    | {
+        text: string | RegExp;
+        json?: never;
+      }
+    | {
+        json?: Record<string, unknown>;
+        text?: never;
+      };
 }
 
 interface ResourceContentInfo {
   mimeType?: string;
   text?: string | RegExp;
   blob?: string | RegExp;
+  uri?: string | RegExp;
 }
 
 export interface ExpectedToolResult {
   isError?: boolean;
-  content?: (ContentText | ContentResource)[];
-  contents?: ResourceContentInfo[];
+  tool?: (ContentText | ContentResource)[];
+  resource?: ResourceContentInfo[];
 }
 
 interface ActualContentItem {
@@ -98,7 +104,7 @@ function matchContentItem(
 
 /* --- Register the matcher with Vitest --------------------------- */
 expect.extend({
-  toMatchToolResult(received: unknown, expected: ExpectedToolResult): ExpectationResult {
+  toMatchMcpResult(received: unknown, expected: ExpectedToolResult): ExpectationResult {
     if (!received || typeof received !== 'object') {
       return {
         pass: false,
@@ -120,16 +126,16 @@ expect.extend({
       };
     }
 
-    // Verify content array if specified
-    if (expected.content !== undefined) {
+    // Tool result content
+    if (expected.tool !== undefined) {
       const actualContent = result['content'] as ActualContentItem[] | undefined;
-      const expectedContent = expected.content;
+      const expectedContent = expected.tool;
 
       if (!actualContent) {
         return {
           pass: false,
           actual: actualContent,
-          expected: expected.content,
+          expected: expected.tool,
           message: () => `Expected content array to be present but got ${actualContent}`,
         };
       }
@@ -160,11 +166,11 @@ expect.extend({
       }
     }
 
-    // Verify contents array if specified (for resource response)
-    if (expected.contents !== undefined) {
+    // Resource response contents
+    if (expected.resource !== undefined) {
       const actualContents = result['contents'] as Record<string, unknown>[] | undefined;
 
-      const expectedContents = expected.contents;
+      const expectedContents = expected.resource;
       if (!actualContents) {
         return {
           pass: false,
@@ -205,12 +211,21 @@ expect.extend({
           };
         }
 
-        if (expectedItem.text !== undefined && actualItem['text'] !== expectedItem.text) {
+        if (expectedItem.text !== undefined && !matches(actualItem['text'], expectedItem.text)) {
           return {
             pass: false,
             actual: actualItem['text'],
             expected: expectedItem.text,
             message: () => `Contents item at index ${i} has wrong text content`,
+          };
+        }
+
+        if (expectedItem.uri !== undefined && !matches(actualItem['uri'], expectedItem.uri)) {
+          return {
+            pass: false,
+            actual: actualItem['uri'],
+            expected: expectedItem.uri,
+            message: () => `Contents item at index ${i} has wrong uri`,
           };
         }
 
@@ -232,8 +247,6 @@ expect.extend({
               message: () => `Contents item at index ${i} blob property should be a string`,
             };
           }
-
-          // For blob, we usually just want to check it exists, not the exact value
         }
       }
     }
@@ -246,12 +259,23 @@ expect.extend({
   },
 });
 
+function matches(actual: unknown, expected: string | RegExp): boolean {
+  if (expected instanceof RegExp) {
+    if (typeof actual !== 'string') {
+      return false;
+    }
+    return expected.test(actual);
+  } else {
+    return actual === expected;
+  }
+}
+
 /* --- Type declarations so TS recognises the matcher ------------- */
 declare module 'vitest' {
   interface Assertion {
-    toMatchToolResult(expected: ExpectedToolResult): void;
+    toMatchMcpResult(expected: ExpectedToolResult): void;
   }
   interface AsymmetricMatchersContaining {
-    toMatchToolResult(expected: ExpectedToolResult): void;
+    toMatchMcpResult(expected: ExpectedToolResult): void;
   }
 }
