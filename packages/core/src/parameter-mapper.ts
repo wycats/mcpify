@@ -1,104 +1,14 @@
-import type { CallToolResult, ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import type { LogLayer } from 'loglayer';
-import type Oas from 'oas';
 import type { Operation } from 'oas/operation';
 import type { OpenAPIV3 } from 'openapi-types';
 import type { z } from 'zod';
 import type { JSONSchema } from 'zod-from-json-schema';
 import { jsonSchemaObjectToZodRawShape } from 'zod-from-json-schema';
 
-import { CustomExtensions } from './operation/custom-extensions.ts';
-import type { CustomExtensionsInterface } from './operation/custom-extensions.ts';
-import { McpifyOperation } from './operation/ext.ts';
-import { buildRequest } from './request/request-builder.ts';
-import { ResponseHandler } from './response/response-handler.ts';
-
-export type PathOperations = ReturnType<Oas['getPaths']>[string];
-export type PathOperation = PathOperations[keyof PathOperations];
+import type { PathOperation } from './client.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Deref<T> = T & Exclude<T, { $ref: any }>;
-
-export type IntoOperationExtensions = CustomExtensionsInterface | CustomExtensions;
-
-export class OperationClient {
-  static from(
-    operation: PathOperation,
-    extensions: IntoOperationExtensions,
-    options: { log: LogLayer },
-  ): OperationClient | null {
-    return new OperationClient(options, operation, CustomExtensions.of(extensions));
-  }
-
-  #ext: McpifyOperation;
-  #app: { log: LogLayer };
-  #responseHandler: ResponseHandler;
-
-  private constructor(
-    app: { log: LogLayer },
-    operation: PathOperation,
-    extensions: CustomExtensions,
-  ) {
-    this.#app = app;
-    this.#ext = McpifyOperation.from(operation, extensions, app);
-    this.#responseHandler = new ResponseHandler(app.log, this.#ext);
-  }
-
-  get op(): McpifyOperation {
-    return this.#ext;
-  }
-
-  #buildRequest(args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>): Request {
-    const bucketed = this.#ext.bucketArgs(args);
-
-    this.#app.log.trace('Calling operation with args', JSON.stringify(bucketed, null, 2));
-
-    const request = buildRequest(this.#app, this.#ext, args);
-
-    this.#app.log.trace('Calling operation with request', JSON.stringify(request, null, 2));
-
-    return request;
-  }
-
-  /**
-   * Executes a network request with the given arguments and returns the raw response
-   * @param args The arguments to pass to the operation
-   */
-  async #executeRequest(args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>): Promise<Response> {
-    const request = this.#buildRequest(args);
-    return fetch(request);
-  }
-
-  /**
-   * Invokes the operation as a tool call
-   * @param args The arguments to pass to the operation
-   * @returns A CallToolResult object representing the response
-   */
-  async invoke(args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>): Promise<CallToolResult> {
-    const response = await this.#executeRequest(args);
-
-    if (response.status >= 400) {
-      return this.#responseHandler.handleErrorResponse(response);
-    }
-
-    return this.#responseHandler.handleToolResponse(response);
-  }
-
-  /**
-   * Reads a resource using the operation
-   * @param args The arguments to pass to the operation
-   * @returns A ReadResourceResult object representing the resource content
-   */
-  async read(args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>): Promise<ReadResourceResult> {
-    const response = await this.#executeRequest(args);
-    return this.#responseHandler.handleResourceResponse(response);
-  }
-}
-
-export type OasResponseType =
-  | 'application/json'
-  | 'application/x-www-form-urlencoded'
-  | 'text/plain';
 
 export type BucketLocation = 'path' | 'query' | 'header' | 'cookie';
 

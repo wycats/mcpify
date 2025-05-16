@@ -2,18 +2,19 @@ import type { LogLayer } from 'loglayer';
 import Oas from 'oas';
 import type { z } from 'zod';
 
+import type { PathOperation, IntoOperationExtensions } from '../client.ts';
 import { getParameters } from '../parameter-mapper.ts';
-import type {
-  IntoOperationExtensions,
-  OasResponseType,
-  PathOperation,
-} from '../parameter-mapper.ts';
 import { bucketArgs } from '../request/request-utils.ts';
 import type { BucketedArgs, JsonObject } from '../request/request-utils.ts';
 import { HttpVerb } from '../safety.ts';
 import { ResponseSchemaExtractor } from '../schema/response-schema.ts';
 
 import { CustomExtensions } from './custom-extensions.ts';
+
+export type OasResponseType =
+  | 'application/json'
+  | 'application/x-www-form-urlencoded'
+  | 'text/plain';
 
 /**
  * An extension of an operation that:

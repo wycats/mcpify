@@ -6,8 +6,10 @@ import { describe, it, expect, assert } from 'vitest';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
-import { getJsonSchema, OperationClient } from './parameter-mapper.ts';
-import type { PathOperation } from './parameter-mapper.ts';
+import { OperationClient } from './client.ts';
+import type { PathOperation } from './client.ts';
+import { McpifyOperation } from './operation/ext.ts';
+import { getJsonSchema } from './parameter-mapper.ts';
 import { HttpVerb } from './safety.ts';
 
 interface TestOperation {
@@ -104,7 +106,7 @@ describe('Request Body Schema Handling', () => {
     assert(verb, `Unsupported HTTP method: ${method}`);
 
     // Create ExtendedOperation instance
-    const client = OperationClient.from(operation, {}, { log });
+    const client = OperationClient.tool({ log }, McpifyOperation.from(operation, {}, { log }));
 
     assert(client, 'Failed to create OperationClient instance');
 

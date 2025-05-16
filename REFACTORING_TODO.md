@@ -25,7 +25,7 @@ The refactoring from `ExtendedOperation` to `OperationClient` has greatly improv
 - [x] Using composition over inheritance for improved maintainability
 - [ ] Further separating responsibilities in `OperationClient`:
   - [x] Extract the response handling logic into a dedicated class
-  - [ ] Consider separating resource reading from operation invocation
+  - [x] Consider separating resource reading from operation invocation
   - [ ] Move request building concerns to a specialized builder class
 
 ## Request Building Improvements

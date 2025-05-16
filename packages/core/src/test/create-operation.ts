@@ -5,8 +5,9 @@ import type { OpenAPIV3 } from 'openapi-types';
 import type { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
-import { OperationClient } from '../parameter-mapper.ts';
-import type { PathOperation } from '../parameter-mapper.ts';
+import { OperationClient } from '../client.ts';
+import type { PathOperation } from '../client.ts';
+import { McpifyOperation } from '../operation/ext.ts';
 import { HttpVerb } from '../safety.ts';
 
 import { testApp } from './create-oas.ts';
@@ -47,7 +48,7 @@ export interface TestOperationOptions {
  * Creates a test operation with the specified configuration.
  * This is a unified utility that consolidates multiple similar functions
  * used across different test files.
- * 
+ *
  * @param options - Configuration options for the test operation
  * @returns Test operation instance with all associated objects
  */
@@ -132,7 +133,7 @@ export function createTestOperation(options: TestOperationOptions): TestOperatio
     isJson: () => !contentType || contentType === 'application/json',
     isFormUrlEncoded: () => contentType === 'application/x-www-form-urlencoded',
     api: {
-      servers: [{ url: serverUrl }]
+      servers: [{ url: serverUrl }],
     },
     url: () => serverUrl,
     requestBody,
@@ -152,10 +153,7 @@ export function createTestOperation(options: TestOperationOptions): TestOperatio
   }
 
   // Create OperationClient instance
-  const client = OperationClient.from(operation, {}, { log });
-  if (!client) {
-    throw new Error('Failed to create OperationClient instance');
-  }
+  const client = OperationClient.tool({ log }, McpifyOperation.from(operation, {}, { log }));
 
   return {
     oas,

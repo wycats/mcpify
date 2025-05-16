@@ -1,7 +1,7 @@
 // We define our own PathOperation interface to avoid direct dependency on OAS implementation
 import type { z } from 'zod';
 
-import type { PathOperation } from '../parameter-mapper.ts';
+import type { PathOperation } from '../client.ts';
 
 // Define interfaces for operating with the OAS library
 
