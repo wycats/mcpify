@@ -5,7 +5,7 @@ import type { z } from 'zod';
 
 import { CustomExtensions } from './operation/custom-extensions.ts';
 import type { CustomExtensionsInterface } from './operation/custom-extensions.ts';
-import { McpifyOperation } from './operation/ext.ts';
+import { QuickMcpOperation } from './operation/ext.ts';
 import { buildRequest } from './request/request-builder.ts';
 import { handleToolResponse, handleResourceResponse } from './response/response-handler.ts';
 
@@ -18,7 +18,7 @@ type InvokeResult = CallToolResult | ReadResourceResult;
  * Client for invoking operations as tool calls
  */
 export class OperationClient<T extends InvokeResult = InvokeResult> {
-  static tool(app: { log: LogLayer }, operation: McpifyOperation): OperationClient<CallToolResult> {
+  static tool(app: { log: LogLayer }, operation: QuickMcpOperation): OperationClient<CallToolResult> {
     return new OperationClient(app, operation, async (response) => {
       return handleToolResponse(response, app.log, operation);
     });
@@ -26,7 +26,7 @@ export class OperationClient<T extends InvokeResult = InvokeResult> {
 
   static resource(
     app: { log: LogLayer },
-    operation: McpifyOperation,
+    operation: QuickMcpOperation,
   ): OperationClient<ReadResourceResult> {
     return new OperationClient(app, operation, async (response) => {
       return handleResourceResponse(response, app.log, operation);
@@ -34,13 +34,13 @@ export class OperationClient<T extends InvokeResult = InvokeResult> {
   }
 
   readonly #app: { log: LogLayer };
-  readonly #operation: McpifyOperation;
+  readonly #operation: QuickMcpOperation;
 
   readonly #invoke: (response: Response) => Promise<T>;
 
   private constructor(
     app: { log: LogLayer },
-    operation: McpifyOperation,
+    operation: QuickMcpOperation,
     invoke: (response: Response) => Promise<T>,
   ) {
     this.#app = app;
@@ -48,7 +48,7 @@ export class OperationClient<T extends InvokeResult = InvokeResult> {
     this.#invoke = invoke;
   }
 
-  get op(): McpifyOperation {
+  get op(): QuickMcpOperation {
     return this.#operation;
   }
 
@@ -81,19 +81,19 @@ export function createClient(
   options: { log: LogLayer },
 ): OperationClient {
   const ext = CustomExtensions.of(extensions);
-  const mcpifyOperation = McpifyOperation.from(operation, ext, options);
+  const quickMcpOperation = QuickMcpOperation.from(operation, ext, options);
 
-  if (mcpifyOperation.isResource) {
-    return OperationClient.resource(options, mcpifyOperation);
+  if (quickMcpOperation.isResource) {
+    return OperationClient.resource(options, quickMcpOperation);
   } else {
-    return OperationClient.tool(options, mcpifyOperation);
+    return OperationClient.tool(options, quickMcpOperation);
   }
 } /**
  * Executes a network request with the given arguments and returns the raw response
  */
 
 export async function executeRequest(
-  operation: McpifyOperation,
+  operation: QuickMcpOperation,
   app: { log: LogLayer },
   args: z.objectOutputType<z.ZodRawShape, z.ZodTypeAny>,
 ): Promise<Response> {

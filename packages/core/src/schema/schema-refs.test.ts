@@ -25,7 +25,7 @@ interface SchemaWithRef {
 
 /**
  * This test suite documents and verifies our assumptions about how $ref
- * is handled in OpenAPI and how it is resolved in the MCPify codebase.
+ * is handled in OpenAPI and how it is resolved in the Quick-MCP codebase.
  */
 describe('Schema References Resolution', () => {
   /**

@@ -19,18 +19,18 @@ export type OasResponseType =
 /**
  * An extension of an operation that:
  *
- * - Incorporates custom mcpify extensions (e.g. the `isResource` getter
- *   supports overrides via `x-mcpify:ignore`)
+ * - Incorporates custom Quick-MCP extensions (e.g. the `isResource` getter
+ *   supports overrides via `x-quick-mcp:ignore`)
  * - Provides higher-level abstractions for common tasks (e.g. `bucketArgs`)
  *   that can be performed based entirely on the operation and any custom
  *   extensions.
  */
-export class McpifyOperation {
+export class QuickMcpOperation {
   static from(
     op: PathOperation,
     extensions: IntoOperationExtensions,
     app: { log: LogLayer },
-  ): McpifyOperation {
+  ): QuickMcpOperation {
     const verb = HttpVerb.from(op.method);
 
     if (!verb) {
@@ -38,7 +38,7 @@ export class McpifyOperation {
       throw new Error(`Unsupported HTTP method: ${op.method}`);
     }
 
-    return new McpifyOperation(verb, op, CustomExtensions.of(extensions), app);
+    return new QuickMcpOperation(verb, op, CustomExtensions.of(extensions), app);
   }
 
   readonly verb: HttpVerb;
@@ -72,7 +72,7 @@ export class McpifyOperation {
    *
    * - It has no parameters or only path parameters
    * - It is a GET operation
-   * - It doesn't specify annotations other than `readonly` in the `x-mcpify` extension
+   * - It doesn't specify annotations other than `readonly` in the `x-quick-mcp` extension
    * - It doesn't specify `ignore: 'resource'` or `ignore: true`
    */
   get isResource(): boolean {
@@ -105,7 +105,7 @@ export class McpifyOperation {
   /**
    * Returns the ID of the operation.
    *
-   * If the operation has an ID in `x-mcpify:id`, that will be returned.
+   * If the operation has an ID in `x-quick-mcp:id`, that will be returned.
    * Otherwise, the `operationId` from the OpenAPI document will be used.
    */
   get id(): string {
@@ -143,7 +143,7 @@ export class McpifyOperation {
   /**
    * Returns the description of the operation.
    *
-   * If the operation has a custom description in the `x-mcpify` extension, that
+   * If the operation has a custom description in the `x-quick-mcp` extension, that
    * will be returned. Otherwise, the summary and description from the OAS will
    * be used.
    */

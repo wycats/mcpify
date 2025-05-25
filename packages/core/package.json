@@ -1,12 +1,12 @@
 {
-  "name": "@mcpify/core",
+  "name": "@quick-mcp/core",
   "version": "0.1.0",
   "description": "A dynamic proxy that converts OpenAPI endpoints into MCP tools on the fly",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wycats/mcpify.git"
+    "url": "git+https://github.com/wycats/quick-mcp.git"
   },
   "files": [
     "src",

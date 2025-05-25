@@ -3,6 +3,8 @@ import typescriptParser from '@typescript-eslint/parser';
 import prettier from 'eslint-config-prettier';
 import * as importPlugin from 'eslint-plugin-import';
 
+import customRules from './eslint-rules/index.js';
+
 // Configure import plugin rules
 const importConfig = {
   plugins: {
@@ -32,9 +34,9 @@ export default [
   // Import rules (applied to all files)
   importConfig,
 
-  // Apply TypeScript plugin's recommended configuration for core package
+  // Apply TypeScript plugin's recommended configuration for all TypeScript files
   {
-    files: ['packages/core/**/*.ts', 'tests/**/*.ts'],
+    files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
       parser: typescriptParser,
       parserOptions: {
@@ -45,6 +47,7 @@ export default [
     },
     plugins: {
       '@typescript-eslint': typescript,
+      'custom': customRules,
     },
     rules: {
       // Using TypeScript ESLint plugin's recommended, strict, and strict-type-checked rules as a base
@@ -97,7 +100,7 @@ export default [
         },
       ],
 
-      // For MCPify, which needs to proxy dynamic content from OpenAPI specs,
+      // For Quick-MCP, which needs to proxy dynamic content from OpenAPI specs,
       // we need to be more lenient with some type checking rules
       '@typescript-eslint/no-explicit-any': 'error', // Allow any for API proxying
       '@typescript-eslint/no-unsafe-assignment': 'error', // Need for dynamic OpenAPI parsing
@@ -110,9 +113,57 @@ export default [
       '@typescript-eslint/no-misused-promises': 'warn', // Allow async handlers
       '@typescript-eslint/unbound-method': 'warn', // Allow methods as callbacks
 
+      // Custom rules
+      'custom/no-mocks-spies': 'error',
+      'custom/require-ts-extensions': 'error',
+
       // Environment specific rules
       'no-undef': 'off', // TypeScript already handles this better
       'no-console': ['warn', { allow: ['warn', 'error', 'info', 'debug'] }],
+    },
+  },
+
+  // Special configuration for test files
+  {
+    files: ['**/*.test.ts', '**/*.spec.ts', 'tests/**/*.ts'],
+    languageOptions: {
+      parser: typescriptParser,
+      parserOptions: {
+        ecmaVersion: 2022,
+        sourceType: 'module',
+        projectService: true,
+      },
+    },
+    plugins: {
+      '@typescript-eslint': typescript,
+      'custom': customRules,
+    },
+    rules: {
+      // Enforce no mocks/spies specifically in test files
+      'custom/no-mocks-spies': 'error',
+      'custom/require-ts-extensions': 'error',
+      
+      // Less strict TypeScript rules for tests
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+    },
+  },
+
+  // Configuration for ESLint rules directory (JavaScript with JSDoc)
+  {
+    files: ['eslint-rules/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+    },
+    rules: {
+      // Keep safety rules enabled, only disable formatting rules for rule implementations
+      'import/order': 'off', // Less critical for rule implementations
     },
   },
 
@@ -124,10 +175,12 @@ export default [
       '**/dist/**',
       '.vite/**',
       '**/coverage/**',
-      '*.js',
+      '*.config.js', // Ignore config files
+      'packages/demo/src/**/*.js', // Ignore demo JS files
       '*.mjs',
       '*.cjs',
       'eslint.config.js',
+      'eslint-rules/test-fixtures/**', // Ignore test fixtures for ESLint rules
     ],
   },
 
@@ -146,6 +199,7 @@ export default [
     plugins: {
       '@typescript-eslint': typescript,
       import: importPlugin,
+      'custom': customRules,
     },
     rules: {
       ...typescript.configs['recommended'].rules,
@@ -163,6 +217,11 @@ export default [
       '@typescript-eslint/restrict-template-expressions': 'off',
       '@typescript-eslint/unbound-method': 'off',
       'no-console': 'off',
+
+      // Custom rules for demo package
+      'custom/require-ts-extensions': 'error',
+      // Allow mocks in demo for testing purposes
+      'custom/no-mocks-spies': 'off',
     },
   },
 

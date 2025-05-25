@@ -1,7 +1,4 @@
 // External imports
-import { OpenApiSpec } from '@mcpify/core';
-import type { OpenApiSpecOptions } from '@mcpify/core';
-import { testApp } from '@mcpify/core/test';
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
@@ -9,6 +6,10 @@ import Oas from 'oas';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
+
+import type { OpenApiSpecOptions } from '../../packages/core/src/main.ts';
+import { OpenApiSpec } from '../../packages/core/src/main.ts';
+import { testApp } from '../../packages/core/src/test/index.ts';
 
 // Define specific callback types for our test implementation to avoid using 'Function' type
 type ResourceCallbackFn = (uri: string, args: Record<string, unknown>) => Promise<unknown>;
@@ -104,7 +105,7 @@ class TestMcpServer {
   }
 }
 
-describe('MCPify Integration', () => {
+describe('Quick-MCP Integration', () => {
   // Define our schemas using Zod for type safety
   const PetSchema = z.object({
     id: z.number().int().optional(),
@@ -125,7 +126,7 @@ describe('MCPify Integration', () => {
     info: {
       title: 'Test API',
       version: '1.0.0',
-      description: 'A simple API for testing MCPify',
+      description: 'A simple API for testing Quick-MCP',
     },
     servers: [
       {

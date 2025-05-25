@@ -105,7 +105,7 @@ class TestMcpServer {
   }
 }
 
-describe('MCPify Integration', () => {
+describe('Quick-MCP Integration', () => {
   // Define our schemas using Zod for type safety
   const PetSchema = z.object({
     id: z.number().int().optional(),
@@ -126,7 +126,7 @@ describe('MCPify Integration', () => {
     info: {
       title: 'Test API',
       version: '1.0.0',
-      description: 'A simple API for testing MCPify',
+      description: 'A simple API for testing Quick-MCP',
     },
     servers: [
       {

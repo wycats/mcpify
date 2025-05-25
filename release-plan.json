@@ -9,7 +9,7 @@
     }
   },
   "packages": {
-    "@mcpify/core": {
+    "@quick-mcp/core": {
       "path": "packages/core"
     }
   },

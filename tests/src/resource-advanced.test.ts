@@ -1,12 +1,13 @@
 // External imports
-import { OpenApiSpec } from '@mcpify/core';
-import type { OpenApiSpecOptions } from '@mcpify/core';
-import { testApp } from '@mcpify/core/test';
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import Oas from 'oas';
 import { describe, it, expect } from 'vitest';
+
+import { OpenApiSpec } from '../../packages/core/src/main.ts';
+import type { OpenApiSpecOptions } from '../../packages/core/src/main.ts';
+import { testApp } from '../../packages/core/src/test/index.ts';
 
 // Define specific callback types for our test implementation to avoid using 'Function' type
 type ResourceCallbackFn = (uri: string, args: Record<string, unknown>) => Promise<unknown>;
@@ -217,7 +218,7 @@ describe('Advanced Resource Registration Tests', () => {
       expect(resourceIds).toContain('getNormalResource');
     });
 
-    it('should not register resources with x-mcpify:ignore=true config', () => {
+    it('should not register resources with x-quick-mcp:ignore=true config', () => {
       const spec = {
         openapi: '3.0.0',
         info: { title: 'Ignore All API', version: '1.0.0' },
@@ -225,7 +226,7 @@ describe('Advanced Resource Registration Tests', () => {
           '/completely-ignored/{id}': {
             get: {
               operationId: 'getCompletelyIgnored',
-              'x-mcpify': {
+              'x-quick-mcp': {
                 ignore: true
               },
               parameters: [
