@@ -1,0 +1,1 @@
+mcp-quick-mcp: node --experimental-strip-types packages/core/src/main.ts --env

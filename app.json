@@ -1,0 +1,45 @@
+{
+  "name": "Quick-MCP Server",
+  "description": "A dynamic proxy that converts OpenAPI specifications into MCP tools and resources in real-time",
+  "keywords": ["mcp", "openapi", "ai", "tools", "proxy"],
+  "website": "https://github.com/your-org/quick-mcp",
+  "repository": "https://github.com/your-org/quick-mcp",
+  "logo": "https://node-js-sample.herokuapp.com/node.png",
+  "success_url": "/",
+  "env": {
+    "OPENAPI_SPEC_URL": {
+      "description": "URL or path to your OpenAPI specification",
+      "required": true
+    },
+    "BASE_URL": {
+      "description": "Base URL for the API (overrides the one in the spec)",
+      "required": false
+    },
+    "LOG_LEVEL": {
+      "description": "Log level (trace, debug, info, warn, error, fatal)",
+      "value": "info",
+      "required": false
+    },
+    "TRANSPORT": {
+      "description": "Transport type (http or stdio)",
+      "value": "http",
+      "required": false
+    },
+    "AUTH_HEADERS": {
+      "description": "JSON string of authentication headers to add to all requests",
+      "required": false
+    }
+  },
+  "formation": {
+    "mcp-quick-mcp": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "stack": "heroku-24"
+}
