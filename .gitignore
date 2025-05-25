@@ -29,3 +29,9 @@ dist-ssr
 # moon
 .moon/cache
 .moon/docker
+
+# LLM conversation artifacts and development chat logs
+chat-history.md
+**/chat-history.md
+conversation*.md
+**/conversation*.md
