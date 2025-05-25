@@ -1,5 +1,5 @@
 /**
- * MCPify: Convert OpenAPI specifications into MCP servers
+ * Quick-MCP: Convert OpenAPI specifications into MCP servers
  */
 
 import { randomUUID } from 'crypto';
@@ -73,43 +73,157 @@ export interface ServerOptions {
   port: number;
   headers: Record<string, string>;
   transport: 'http' | 'stdio';
+  baseUrl?: string;
 }
 
-type McpifyState = Omit<ServerOptions, 'spec'> & { spec: OpenApiSpec };
+type QuickMcpState = Omit<ServerOptions, 'spec'> & { spec: OpenApiSpec };
 
 /**
- * Main class for the MCPify proxy server
+ * Environment configuration for 12-factor app compliance
+ * Supports Heroku deployment out of the box
  */
-class MCPify {
-  static async load(options: ServerOptions): Promise<MCPify> {
+export interface EnvironmentConfig {
+  PORT?: string;
+  OPENAPI_SPEC_URL?: string;
+  BASE_URL?: string;
+  LOG_LEVEL?: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+  TRANSPORT?: 'http' | 'stdio';
+  AUTH_HEADERS?: string; // JSON string of headers
+}
+
+/**
+ * Load configuration from environment variables (12-factor app principle)
+ */
+export function loadEnvironmentConfig(): EnvironmentConfig {
+  const config: EnvironmentConfig = {};
+  
+  if (process.env['PORT']) config.PORT = process.env['PORT'];
+  if (process.env['OPENAPI_SPEC_URL']) config.OPENAPI_SPEC_URL = process.env['OPENAPI_SPEC_URL'];
+  if (process.env['BASE_URL']) config.BASE_URL = process.env['BASE_URL'];
+  
+  const logLevel = process.env['LOG_LEVEL'];
+  if (logLevel && ['trace', 'debug', 'info', 'warn', 'error', 'fatal'].includes(logLevel)) {
+    config.LOG_LEVEL = logLevel as 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+  }
+  
+  const transport = process.env['TRANSPORT'];
+  if (transport && ['http', 'stdio'].includes(transport)) {
+    config.TRANSPORT = transport as 'http' | 'stdio';
+  }
+  
+  if (process.env['AUTH_HEADERS']) config.AUTH_HEADERS = process.env['AUTH_HEADERS'];
+  
+  return config;
+}
+
+/**
+ * Main class for the Quick-MCP proxy server
+ */
+class QuickMCP {
+  static async load(options: ServerOptions): Promise<QuickMCP> {
     const spec = await OpenApiSpec.load(options.spec, {
       app: options.app,
+      ...(options.baseUrl && { baseUrl: options.baseUrl }),
     });
 
-    return new MCPify({ ...options, spec });
+    return new QuickMCP({ ...options, spec });
+  }
+
+  /**
+   * Create QuickMCP instance from environment variables (12-factor app)
+   * Perfect for Heroku deployment
+   */
+  static async fromEnvironment(overrides: Partial<ServerOptions> = {}): Promise<QuickMCP> {
+    const env = loadEnvironmentConfig();
+    
+    // Parse auth headers from environment
+    let authHeaders: Record<string, string> = {};
+    if (env.AUTH_HEADERS) {
+      try {
+        authHeaders = JSON.parse(env.AUTH_HEADERS) as Record<string, string>;
+      } catch (error) {
+        console.warn('Failed to parse AUTH_HEADERS environment variable:', error);
+      }
+    }
+
+    const app = App.default({
+      logLevel: env.LOG_LEVEL ?? 'info',
+    });
+
+    const baseUrl = env.BASE_URL ?? overrides.baseUrl;
+    const options: ServerOptions = {
+      app,
+      spec: env.OPENAPI_SPEC_URL ?? overrides.spec ?? '',
+      port: parseInt(env.PORT ?? '8080', 10),
+      headers: { ...authHeaders, ...overrides.headers },
+      transport: env.TRANSPORT ?? 'http',
+      ...(baseUrl && { baseUrl }),
+      ...overrides,
+    };
+
+    if (!options.spec) {
+      throw new Error('OpenAPI spec URL must be provided via OPENAPI_SPEC_URL environment variable or options.spec');
+    }
+
+    return QuickMCP.load(options);
   }
 
   // Private class properties
   readonly #server: McpServer;
-  readonly #state: McpifyState;
+  readonly #state: QuickMcpState;
 
   // No static constants needed here anymore
 
   /**
-   * Create a new MCPify server
+   * Create a new Quick-MCP server
    */
-  constructor(options: McpifyState) {
+  constructor(options: QuickMcpState) {
+    // Initialize state first
+    this.#state = options;
+    
     // Initialize the MCP server
     this.#server = new McpServer({
-      name: 'MCPify Proxy',
+      name: 'Quick-MCP Proxy',
       version,
     });
 
-    this.#state = options;
+    // Log startup configuration for debugging
+    this.#state.app.log.info('Quick-MCP starting with configuration:', JSON.stringify({
+      transport: options.transport,
+      port: options.port,
+      hasBaseUrl: !!options.baseUrl,
+      headerCount: Object.keys(options.headers).length,
+    }));
   }
 
   get #log(): LogLayer {
     return this.#state.app.log;
+  }
+
+  /**
+   * Get safety statistics for all exposed tools
+   */
+  #getSafetyStats(): Record<string, number> {
+    const tools = this.#state.spec.getTools();
+    const stats = {
+      readonly: 0,
+      update: 0,
+      idempotent: 0,
+      destructive: 0,
+    };
+
+    tools.forEach(tool => {
+      const operation = this.#state.spec.getOperation(tool.name);
+      if (operation) {
+        const hints = operation.verb.hints;
+        if (hints.readOnlyHint) stats.readonly++;
+        if (!hints.readOnlyHint && !hints.destructiveHint) stats.update++;
+        if (hints.idempotentHint) stats.idempotent++;
+        if (hints.destructiveHint) stats.destructive++;
+      }
+    });
+
+    return stats;
   }
 
   /**
@@ -151,11 +265,21 @@ class MCPify {
           });
 
           const port = this.#state.port;
+          const host = process.env['NODE_ENV'] === 'production' ? '0.0.0.0' : 'localhost';
 
-          // Start express server
-          const server = app.listen(this.#state.port, () => {
-            this.#log.info(`MCP proxy server started at http://localhost:${port}/mcp`);
+          // Start express server with proper host binding for Heroku
+          const server = app.listen(port, host, () => {
+            this.#log.info(`MCP proxy server started at http://${host}:${port}/mcp`);
             this.#log.info('info', `Use this URL for your MCP client configuration`);
+            
+            // Log safety information about exposed tools
+            const tools = this.#state.spec.getTools();
+            const resources = this.#state.spec.getResources();
+            this.#log.info(`Exposing ${tools.length} tools and ${resources.length} resources`);
+            
+            // Log safety summary
+            const safetyStats = this.#getSafetyStats();
+            this.#log.info('Safety summary: ' + JSON.stringify(safetyStats));
           });
 
           // Add error handling for the server
@@ -183,7 +307,7 @@ class MCPify {
 
 // CLI definition using Commander
 const program = new Command()
-  .name('mcpify')
+  .name('quick-mcp')
   .description('A dynamic proxy that converts OpenAPI endpoints into MCP tools on the fly')
   .version(version)
   .addOption(
@@ -210,23 +334,37 @@ const program = new Command()
       .choices(['http', 'stdio'])
       .default('http'),
   )
+  .option('--env', 'Load configuration from environment variables (12-factor app mode)')
   .action(async (options) => {
-    // Validate required options with proper typing
-    const app = App.default({
-      logLevel: options.logLevel,
-    });
+    let quickMcp: QuickMCP;
 
-    // Create and start the MCPify server with properly typed options
-    const mcpify = await MCPify.load({
-      app,
-      transport: options.transport,
-      spec: options.spec,
-      port: options.port,
-      headers: options.header,
-    });
+    if (options.env) {
+      // Load from environment variables (12-factor app mode)
+      quickMcp = await QuickMCP.fromEnvironment({
+        ...(options.spec ? { spec: options.spec } : {}),
+        ...(options.port ? { port: options.port } : {}),
+        headers: options.header,
+        transport: options.transport,
+        ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
+      });
+    } else {
+      // Traditional CLI mode
+      const app = App.default({
+        logLevel: options.logLevel,
+      });
+
+      quickMcp = await QuickMCP.load({
+        app,
+        transport: options.transport,
+        spec: options.spec,
+        port: options.port,
+        headers: options.header,
+        ...(options.baseUrl && { baseUrl: options.baseUrl }),
+      });
+    }
 
     // Start the proxy server with the chosen transport
-    await mcpify.start();
+    await quickMcp.start();
   });
 
 // Parse CLI arguments if this is being run directly
@@ -235,7 +373,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 
 // Export for use in other modules
-export { MCPify };
+export { QuickMCP };
 
 /**
  * Parse one  --header  argument of the form  key=value
