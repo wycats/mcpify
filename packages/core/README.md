@@ -1,10 +1,10 @@
-# 🔄 MCPify
+# 🔄 Quick-MCP
 
 🛠️ A dynamic proxy that converts OpenAPI Specification (OAS) endpoints into Model Context Protocol (MCP) tools on the fly.
 
 ## 🌟 Overview
 
-MCPify enables seamless integration between REST APIs and AI agents by dynamically translating OpenAPI endpoints into MCP tools. Unlike static code generators, MCPify creates a live proxy server that:
+Quick-MCP enables seamless integration between REST APIs and AI agents by dynamically translating OpenAPI endpoints into MCP tools. Unlike static code generators, Quick-MCP creates a live proxy server that:
 
 1. **Parses** OpenAPI specs from local files or URLs
 2. **Dynamically maps** REST endpoints to MCP tools with appropriate schemas
@@ -25,30 +25,30 @@ This allows AI agents to use existing REST APIs as if they were native MCP tools
 ## 📦 Installation
 
 ```bash
-npm install -g mcpify
+npm install -g quick-mcp
 # Or via npx without install
-npx mcpify --spec path/to/openapi.yaml
+npx quick-mcp --spec path/to/openapi.yaml
 ```
 
 ## 🚀 CLI Usage
 
 ```bash
 # Start proxy with local spec
-mcpify --spec api-spec.yaml --base-url https://api.example.com
+quick-mcp --spec api-spec.yaml --base-url https://api.example.com
 
 # Custom port and log level
-mcpify --spec api-spec.yaml --port 9000 --log-level debug
+quick-mcp --spec api-spec.yaml --port 9000 --log-level debug
 
 # Use stdio transport
-mcpify --spec api-spec.yaml --transport stdio
+quick-mcp --spec api-spec.yaml --transport stdio
 
 # Add custom headers
-mcpify --spec api-spec.yaml --header "Authorization: Bearer TOKEN"
+quick-mcp --spec api-spec.yaml --header "Authorization: Bearer TOKEN"
 ```
 
 ## 🖼 Architecture
 
-MCPify follows a real-time proxy architecture:
+Quick-MCP follows a real-time proxy architecture:
 
 1. **Parser** 📄: Loads and validates the OpenAPI specification
 2. **Mapper** 🗺️: Converts API endpoints to MCP tools and resources dynamically
@@ -95,42 +95,42 @@ Endpoints are automatically converted to MCP resources when:
 
 #### Resource Classification Rules
 
-Resource generation can be controlled via `x-mcpify` extensions:
+Resource generation can be controlled via `x-quick-mcp` extensions:
 
 ```yaml
 # Disable resource generation (still available as a tool)
 paths:
   /users/{id}:
     get:
-      x-mcpify:
+      x-quick-mcp:
         ignore: 'resource'
 
 # Disable both resource and tool generation
 paths:
   /internal/metrics:
     get:
-      x-mcpify:
+      x-quick-mcp:
         ignore: true
 
 # Override safety annotations (affects resource classification)
 paths:
   /dangerous-get/{id}:
     get:
-      x-mcpify:
+      x-quick-mcp:
         annotations:
           readOnlyHint: false    # non-readonly GETs are not registered as resources
           destructiveHint: true   # destructive operations aren't registered as resources
 ```
 
-An operation with `x-mcpify: ignore: 'resource'` will still be available as a tool but won't be registered as a resource.
+An operation with `x-quick-mcp: ignore: 'resource'` will still be available as a tool but won't be registered as a resource.
 
-An operation with `x-mcpify: ignore: true` will be completely ignored (neither tool nor resource).
+An operation with `x-quick-mcp: ignore: true` will be completely ignored (neither tool nor resource).
 
 GET operations with non-readonly safety annotations (like `destructiveHint: true`) won't be registered as resources, as resources are expected to be safe to access without side effects.
 
 ## 🔄 Response Schema Handling
 
-MCPify provides comprehensive handling for response schemas defined in your OpenAPI specification:
+Quick-MCP provides comprehensive handling for response schemas defined in your OpenAPI specification:
 
 ### 🔍 Accessing Response Schemas
 
@@ -161,7 +161,7 @@ Response schemas are cached for better performance. If the underlying OpenAPI sp
 
 ### 📋 Content Type Selection
 
-When multiple content types are available for a response, MCPify selects the best JSON-compatible one using this priority:
+When multiple content types are available for a response, Quick-MCP selects the best JSON-compatible one using this priority:
 
 1. `application/json` (highest priority)
 2. Any content type ending with `+json` or containing `json`
@@ -170,7 +170,7 @@ When multiple content types are available for a response, MCPify selects the bes
 ## 📐 Schema Compatibility
 
 > [!IMPORTANT]
-> MCPify handles the differences between OpenAPI schemas and MCP's JSON Schema requirements.
+> Quick-MCP handles the differences between OpenAPI schemas and MCP's JSON Schema requirements.
 
 ### 🔧 Schema Differences
 
@@ -189,7 +189,7 @@ When multiple content types are available for a response, MCPify selects the bes
 
 > [!IMPORTANT]
 >
-> If you don't like the automatic conversions, you can use the `x-mcpify`
+> If you don't like the automatic conversions, you can use the `x-quick-mcp`
 > extension to provide your own schema.
 
 ### 🔢 Type Mappings
@@ -205,9 +205,9 @@ When multiple content types are available for a response, MCPify selects the bes
 
 ## ⚙️ Configuration
 
-### 📝 Using x-mcpify Extensions and Proxy Configuration
+### 📝 Using x-quick-mcp Extensions and Proxy Configuration
 
-Configure custom behavior using the `x-mcpify` extension at different levels in your OpenAPI spec:
+Configure custom behavior using the `x-quick-mcp` extension at different levels in your OpenAPI spec:
 
 1. **Root level** - Global configuration
 2. **Path level** - Endpoint-specific settings
@@ -215,7 +215,7 @@ Configure custom behavior using the `x-mcpify` extension at different levels in 
 
 ```yaml
 # Root level configuration
-x-mcpify:
+x-quick-mcp:
   templates:
     default:
       description: '{summary} ({description})'
@@ -229,7 +229,7 @@ x-mcpify:
 # Path level configuration
 paths:
   /users:
-    x-mcpify:
+    x-quick-mcp:
       include: [tools, resources]
       proxy:
         timeout: 60 # Override timeout for this path
@@ -237,7 +237,7 @@ paths:
   # Operation level configuration
   /users/{id}:
     get:
-      x-mcpify:
+      x-quick-mcp:
         operationId: 'user_by_id' # Override name
         annotations: # Custom annotations
           readOnlyHint: false # Override default
@@ -250,13 +250,13 @@ Alternatively, you can provide proxy-specific configuration via command-line fla
 
 ```bash
 # Configure proxy timeout and retries
-mcpify --spec api-spec.yaml --timeout 60 --retries 3
+quick-mcp --spec api-spec.yaml --timeout 60 --retries 3
 
 # Enable response caching
-mcpify --spec api-spec.yaml --cache-ttl 300
+quick-mcp --spec api-spec.yaml --cache-ttl 300
 
 # Set custom headers for all proxied requests
-mcpify --spec api-spec.yaml --header "User-Agent: MCPify/1.0" --header "X-Custom: Value"
+quick-mcp --spec api-spec.yaml --header "User-Agent: Quick-MCP/1.0" --header "X-Custom: Value"
 ```
 
 ### 🚫 Opting Out
@@ -267,11 +267,11 @@ Disable automatic conversion for specific endpoints:
 paths:
   /internal/metrics:
     get:
-      x-mcpify: false # Disable completely
+      x-quick-mcp: false # Disable completely
 
   /users/{id}:
     get:
-      x-mcpify:
+      x-quick-mcp:
         map: ['tool'] # Only create tool, not resource
 ```
 
@@ -378,7 +378,7 @@ paths:
 
 ### Dynamic Request Handling
 
-MCPify intelligently converts between MCP tool calls and REST API requests:
+Quick-MCP intelligently converts between MCP tool calls and REST API requests:
 
 1. **Request Transformation**: Converts MCP tool arguments to appropriate query parameters, path parameters, headers, and request bodies based on the OpenAPI spec
 
@@ -390,7 +390,7 @@ MCPify intelligently converts between MCP tool calls and REST API requests:
 
 ### Debugging and Monitoring
 
-MCPify includes a web-based debugging interface at `/debug` that provides:
+Quick-MCP includes a web-based debugging interface at `/debug` that provides:
 
 - Real-time request/response logging
 - Tool mapping visualization
@@ -399,11 +399,11 @@ MCPify includes a web-based debugging interface at `/debug` that provides:
 
 ## 🧩 Integration with AI Agents
 
-MCPify makes it easy to connect existing REST APIs to AI agents that support the MCP protocol, effectively turning any API into a tool the agent can use:
+Quick-MCP makes it easy to connect existing REST APIs to AI agents that support the MCP protocol, effectively turning any API into a tool the agent can use:
 
 ```bash
-# Start MCPify proxy to convert Stripe API to MCP
-mcpify --spec https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json \
+# Start Quick-MCP proxy to convert Stripe API to MCP
+quick-mcp --spec https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json \
        --header "Authorization: Bearer sk_test_123" \
        --port 8080
 
