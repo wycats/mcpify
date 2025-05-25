@@ -1,12 +1,12 @@
-# MCPify Integration Tests
+# Quick-MCP Integration Tests
 
-This package contains integration tests for the MCPify library that verify the public API functionality.
+This package contains integration tests for the Quick-MCP library that verify the public API functionality.
 
 ## Purpose
 
 Unlike unit tests (located in `packages/*/src/**/*.test.ts`), these integration tests:
 
-- Import only from the public API (`@mcpify/core`) rather than internal interfaces
+- Import only from the public API (`@quick-mcp/core`) rather than internal interfaces
 - Test end-to-end workflows from input to output
 - Verify the behavior of multiple components working together
 - Serve as usage examples for consumers of the library
@@ -15,10 +15,10 @@ Unlike unit tests (located in `packages/*/src/**/*.test.ts`), these integration 
 
 ```bash
 # Run integration tests only
-pnpm --filter @mcpify/tests test
+pnpm --filter @quick-mcp/tests test
 
 # Run integration tests in watch mode
-pnpm --filter @mcpify/tests test:watch
+pnpm --filter @quick-mcp/tests test:watch
 ```
 
 ## Test Organization
@@ -32,7 +32,7 @@ Tests are organized by feature area:
 
 When writing integration tests:
 
-1. Only import from the public API (`@mcpify/core`)
+1. Only import from the public API (`@quick-mcp/core`)
 2. Do not access internal implementation details
 3. Focus on verifying the end-to-end behavior 
 4. Maintain proper test isolation by creating fresh instances for each test

@@ -17,7 +17,7 @@ describe('buildRequestInit', () => {
     const args: OasRequestArgs = { id: '123' };
 
     // Act
-    const result = buildRequestInit({ log: app.log }, op, args);
+    const result = buildRequestInit({ app, op, args });
 
     // Assert
     expect(result.init).toMatchObject({
@@ -50,7 +50,7 @@ describe('buildRequestInit', () => {
     };
 
     // Act
-    const result = buildRequestInit({ log: app.log }, op, args);
+    const result = buildRequestInit({ app, op, args });
 
     // Assert
     expect(String(result.url)).toBe('https://api.example.com/api/test/123?filter=active');
@@ -70,7 +70,7 @@ describe('buildRequestInit', () => {
     };
 
     // Act
-    const result = buildRequestInit({ log: app.log }, op, args);
+    const result = buildRequestInit({ app, op, args });
 
     // Assert
     expect(result.init.method).toBe('POST');
@@ -100,7 +100,7 @@ describe('buildRequestInit', () => {
     };
 
     // Act
-    const result = buildRequestInit({ log: app.log }, op, args);
+    const result = buildRequestInit({ app, op, args });
 
     // Assert
     expect(result.init.method).toBe('POST');
@@ -137,7 +137,7 @@ describe('buildRequestInit', () => {
     };
 
     // Act
-    const result = buildRequestInit({ log: app.log }, op, args);
+    const result = buildRequestInit({ app, op, args });
 
     // Assert
     expect(result.init.method).toBe('POST');
@@ -166,7 +166,7 @@ describe('buildRequestInit', () => {
     };
 
     // Act
-    const result = buildRequestInit({ log: app.log }, op, args);
+    const result = buildRequestInit({ app, op, args });
 
     // Assert
     expect(result.url.toString()).toBe('https://api.example.com/api/users/user123/posts/post456');
@@ -185,7 +185,7 @@ describe('buildRequestInit', () => {
     };
 
     // Act
-    const result = buildRequestInit({ log: app.log }, op, args);
+    const result = buildRequestInit({ app, op, args });
 
     // Assert
     // The URL comes from the API server configuration in createTestOp
@@ -204,7 +204,7 @@ describe('buildRequestInit', () => {
     };
 
     // Act
-    const result = buildRequestInit({ log: app.log }, op, args);
+    const result = buildRequestInit({ app, op, args });
 
     // Assert
     expect(result.init.method).toBe('PUT');

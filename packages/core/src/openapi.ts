@@ -14,7 +14,7 @@ import { log } from './log.ts';
 import type { App } from './main.ts';
 import { CustomExtensions } from './operation/custom-extensions.ts';
 import type { CustomExtensionsInterface } from './operation/custom-extensions.ts';
-import { McpifyOperation } from './operation/ext.ts';
+import { QuickMcpOperation } from './operation/ext.ts';
 import { getParameters } from './parameter-mapper.ts';
 import { HttpVerb } from './safety.ts';
 
@@ -66,8 +66,8 @@ export class OpenApiSpec {
     const verb = HttpVerb.from(method);
     if (!verb) return null;
 
-    const extensions = normalizeExtensions(this.#spec.getExtension('x-mcpify', operation));
-    return OperationClient.tool(this.#app, McpifyOperation.from(operation, extensions, this.#app));
+    const extensions = normalizeExtensions(this.#spec.getExtension('x-quick-mcp', operation));
+    return OperationClient.tool(this.#app, QuickMcpOperation.from(operation, extensions, this.#app));
   }
 
   get #tools(): OperationClient<CallToolResult>[] {
@@ -158,6 +158,38 @@ export class OpenApiSpec {
     }
 
     this.#log.info(`Created ${endpointCount} MCP tools from OpenAPI specification`);
+  }
+
+  /**
+   * Get all tools from the OpenAPI specification
+   */
+  getTools(): { name: string; description: string; verb: HttpVerb }[] {
+    const tools = this.#tools.filter((client) => !client.op.ignoredWhen({ type: 'tool' }));
+    return tools.map(client => ({
+      name: client.op.id,
+      description: client.op.description,
+      verb: client.op.verb,
+    }));
+  }
+
+  /**
+   * Get all resources from the OpenAPI specification
+   */
+  getResources(): { name: string; description: string; verb: HttpVerb }[] {
+    const resources = this.#tools.filter((client) => client.op.isResource);
+    return resources.map(client => ({
+      name: client.op.id,
+      description: client.op.description,
+      verb: client.op.verb,
+    }));
+  }
+
+  /**
+   * Get a specific operation by name
+   */
+  getOperation(name: string): QuickMcpOperation | undefined {
+    const client = this.#tools.find(client => client.op.id === name);
+    return client?.op;
   }
 }
 
@@ -287,7 +319,7 @@ export function normalizeExtensions(extensions: unknown): CustomExtensions {
     return CustomExtensions.of({});
   }
 
-  // Handle boolean case where x-mcpify: false or x-mcpify: true
+  // Handle boolean case where x-quick-mcp: false or x-quick-mcp: true
   if (typeof extensions === 'boolean' && extensions === false) {
     return CustomExtensions.of({ ignore: true });
   }

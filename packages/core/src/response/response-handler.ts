@@ -2,7 +2,7 @@ import type { CallToolResult, ReadResourceResult } from '@modelcontextprotocol/s
 import type { LogLayer } from 'loglayer';
 import type { Operation } from 'oas/operation';
 
-import type { McpifyOperation } from '../operation/ext.ts';
+import type { QuickMcpOperation } from '../operation/ext.ts';
 
 /**
  * Types of content that can be returned in a tool response
@@ -25,7 +25,7 @@ interface ResponseContentOptions {
 async function createToolError(
   response: Response,
   log: LogLayer,
-  operation: McpifyOperation,
+  operation: QuickMcpOperation,
 ): Promise<CallToolResult> {
   const errorText = await response.text();
   log.warn(`Error response from ${operation.describe()}:`, errorText);
@@ -48,13 +48,13 @@ async function createToolError(
  *
  * @param response The successful response to process
  * @param log Logger instance
- * @param operation McpifyOperation instance
+ * @param operation QuickMcpOperation instance
  * @returns A CallToolResult representing the successful response
  */
 export async function handleToolResponse(
   response: Response,
   log: LogLayer,
-  operation: McpifyOperation,
+  operation: QuickMcpOperation,
 ): Promise<CallToolResult> {
   if (response.status >= 400) {
     return createToolError(response, log, operation);
@@ -110,13 +110,13 @@ function createBinaryResource(
  *
  * @param response The response to process
  * @param log Logger instance
- * @param operation McpifyOperation instance
+ * @param operation QuickMcpOperation instance
  * @returns A ReadResourceResult representing the resource contents
  */
 export async function handleResourceResponse(
   response: Response,
   log: LogLayer,
-  operation: McpifyOperation,
+  operation: QuickMcpOperation,
 ): Promise<ReadResourceResult> {
   const uri = response.url;
   const mime = response.headers.get('Content-Type') ?? 'text/plain';
@@ -214,7 +214,7 @@ async function extractResponseContent(response: Response, mimeType: string): Pro
 export async function toResponseContent(
   response: Response,
   log: LogLayer,
-  ext: McpifyOperation,
+  ext: QuickMcpOperation,
 ): Promise<CallToolResult> {
   const content = await extractResponseContent(response, ext.responseType);
 

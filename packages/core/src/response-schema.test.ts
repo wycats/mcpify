@@ -8,7 +8,7 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 
 import { OperationClient } from './client.ts';
 import type { PathOperation } from './client.ts';
-import { McpifyOperation } from './operation/ext.ts';
+import { QuickMcpOperation } from './operation/ext.ts';
 import { HttpVerb } from './safety.ts';
 import { zodResponseSchemas } from './schema/response-schema.ts';
 import { createTestOas, testApp } from './test/create-oas.ts';
@@ -108,7 +108,7 @@ describe('Response Schema Handling', () => {
     assert(verb, `Unsupported HTTP method: ${method}`);
 
     // Create ExtendedOperation instance
-    const client = OperationClient.tool({ log }, McpifyOperation.from(operation, {}, { log }));
+    const client = OperationClient.tool({ log }, QuickMcpOperation.from(operation, {}, { log }));
 
     assert(client, 'Failed to create OperationClient instance');
 

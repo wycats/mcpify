@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 
-import type { McpifyOperation } from '../operation/ext.ts';
+import type { QuickMcpOperation } from '../operation/ext.ts';
 import type { OasRequestArgs } from '../parameter-mapper.ts';
 import { buildRequest } from '../request/request-builder.ts';
 import type { Verb } from '../utils.ts';
@@ -29,7 +29,7 @@ export function createTestOp(
   options: { contentType?: string; serverUrl?: string; path?: string } = {},
 ): {
   build: (args: OasRequestArgs) => Request;
-  op: McpifyOperation; // Exposing the operation object for tests
+  op: QuickMcpOperation; // Exposing the operation object for tests
 } {
   // Separate params by type
   const pathParams: string[] = [];

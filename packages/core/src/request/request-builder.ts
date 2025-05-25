@@ -1,12 +1,34 @@
 import type { LogLayer } from 'loglayer';
 import { parseTemplate } from 'url-template';
 
-import type { McpifyOperation } from '../operation/ext.ts';
+import type { QuickMcpOperation } from '../operation/ext.ts';
 
 import { createSearchParams } from './request-utils.ts';
-import type { JsonObject } from './request-utils.ts';
+import type { BucketedArgs, JsonObject } from './request-utils.ts';
 import { getBaseUrl } from './url-utils.ts';
 import type { OasRequestArgs } from './url-utils.ts';
+
+/**
+ * Configuration for building a request
+ */
+interface RequestConfig {
+  /** Application context with logging */
+  app: { log: LogLayer };
+  /** Operation to build request for */
+  op: QuickMcpOperation;
+  /** Arguments for the operation */
+  args: OasRequestArgs;
+}
+
+/**
+ * Intermediate result containing processed request parts
+ */
+interface BuiltRequest {
+  /** Processed URL with query parameters */
+  url: URL;
+  /** Request initialization options */
+  init: RequestInit;
+}
 
 /**
  * Builds a standard Request object from OpenAPI operation and arguments.
@@ -18,11 +40,10 @@ import type { OasRequestArgs } from './url-utils.ts';
  */
 export function buildRequest(
   app: { log: LogLayer },
-  op: McpifyOperation,
+  op: QuickMcpOperation,
   args: OasRequestArgs,
 ): Request {
-  const { init, url } = buildRequestInit(app, op, args);
-
+  const { init, url } = buildRequestInit({ app, op, args });
   return new Request(url, init);
 }
 
@@ -30,51 +51,48 @@ export function buildRequest(
  * Builds RequestInit and URL objects for a Request from OpenAPI operation and arguments.
  * This is useful when you need more control over the request creation process.
  *
- * @param app - Application context with logging capabilities
- * @param op - Operation to build request for
- * @param args - Arguments for the operation
+ * @param config - Configuration for building the request
  * @returns Object containing RequestInit and URL objects
  */
-
-export function buildRequestInit(
-  app: { log: LogLayer },
-  op: McpifyOperation,
-  args: OasRequestArgs,
-): { init: RequestInit; url: URL } {
+export function buildRequestInit({ app, op, args }: RequestConfig): BuiltRequest {
   app.log.trace('Specified args', JSON.stringify(args, null, 2));
 
   const bucketed = op.bucketArgs(args as JsonObject);
-
   app.log.trace('Using bucketed args', JSON.stringify(bucketed, null, 2));
 
-  const baseUrl = getBaseUrl(op.oas);
+  const url = buildUrl({ app, op, bucketed });
+  const init = buildRequestInitObject({ app, op, bucketed });
 
+  return { init, url };
+}
+
+/**
+ * Builds the URL for the request, including path parameters and query string
+ */
+function buildUrl({
+  app,
+  op,
+  bucketed,
+}: {
+  app: { log: LogLayer };
+  op: QuickMcpOperation;
+  bucketed: BucketedArgs;
+}): URL {
+  const baseUrl = getBaseUrl(op.oas);
   app.log.debug(`Base URL resolution result: ${baseUrl || '(empty)'}`);
 
-  const path = op.path;
-
-  app.log.trace(`Original operation path: ${path}`);
+  app.log.trace(`Original operation path: ${op.path}`);
   app.log.trace(`Operation method: ${op.verb.uppercase}`);
   app.log.trace(`Operation ID: ${op.id}`);
 
-  const template = parseTemplate(path);
-  const pathParams = bucketed.path;
-
-  // Log path parameters before expansion
-  app.log.trace(`Path parameters:`, JSON.stringify(pathParams, null, 2));
-
-  // Convert to string representations for template expansion
+  const template = parseTemplate(op.path);
   const templateParams = Object.fromEntries(
-    Object.entries(pathParams).map(([k, v]) => [k, String(v)]),
+    Object.entries(bucketed.path).map(([k, v]) => [k, String(v)]),
   );
 
-  app.log.debug(`Template parameters:`, JSON.stringify(templateParams, null, 2));
-
+  app.log.debug('Template parameters:', JSON.stringify(templateParams, null, 2));
   const expandedPath = template.expand(templateParams);
-
-  // Log the expanded path
   app.log.debug(`Path after template expansion: ${expandedPath}`);
-  app.log.debug(`Original path for comparison: ${path}`);
 
   // Properly join baseUrl and path to ensure correct slash handling
   const joinedPath = expandedPath.startsWith('/')
@@ -91,23 +109,54 @@ export function buildRequestInit(
 
   app.log.trace(
     'Initial URL constructed',
-    JSON.stringify({ baseUrl, path, expandedPath, url: url.toString() }),
+    JSON.stringify({ baseUrl, path: op.path, expandedPath, url: url.toString() }),
   );
 
-  let requestBody: string | FormData | undefined;
-  let contentType: string | null = null;
+  return url;
+}
 
+/**
+ * Builds the RequestInit object with method, headers, and body
+ */
+function buildRequestInitObject({
+  app,
+  op,
+  bucketed,
+}: {
+  app: { log: LogLayer };
+  op: QuickMcpOperation;
+  bucketed: BucketedArgs;
+}): RequestInit {
+  const { body: requestBody, contentType } = processRequestBody({ app, bucketed });
+  const headers = createHeaders({ op, contentType });
+
+  return {
+    method: op.verb.uppercase, // Always use uppercase HTTP methods for standard compliance
+    headers,
+    body: requestBody ?? null,
+  };
+}
+
+/**
+ * Processes the request body and determines the content type
+ */
+function processRequestBody({
+  app,
+  bucketed,
+}: {
+  app: { log: LogLayer };
+  bucketed: BucketedArgs;
+}): { body?: string | FormData; contentType: string | null } {
   // Handle request body
   if (bucketed.body !== undefined) {
     // If body is provided directly as a string
     if (typeof bucketed.body === 'string') {
-      requestBody = bucketed.body;
+      return { body: bucketed.body, contentType: 'text/plain' };
     }
     // If body is an object, convert to JSON if appropriate
     else if (bucketed.body !== null && typeof bucketed.body === 'object') {
       try {
-        requestBody = JSON.stringify(bucketed.body);
-        contentType = 'application/json';
+        return { body: JSON.stringify(bucketed.body), contentType: 'application/json' };
       } catch (jsonError) {
         app.log.debug('Error stringifying JSON body', String(jsonError));
       }
@@ -115,27 +164,32 @@ export function buildRequestInit(
   }
   // Handle form data
   else if (bucketed.formData) {
-    if (bucketed.formData instanceof URLSearchParams) {
-      requestBody = bucketed.formData.toString(); // Convert URLSearchParams to string for proper encoding
-    } else {
-      requestBody = bucketed.formData;
-    }
-    contentType = 'application/x-www-form-urlencoded';
+    const body =
+      bucketed.formData instanceof URLSearchParams
+        ? bucketed.formData.toString()
+        : bucketed.formData;
+    return { body, contentType: 'application/x-www-form-urlencoded' };
   }
 
-  // Create the RequestInit object
-  const init: RequestInit = {
-    method: op.verb.uppercase, // Always use uppercase HTTP methods for standard compliance
-    headers: new Headers(),
-    body: requestBody ?? null,
-  };
+  return { contentType: null };
+}
 
-  // Set content type if we have one
+/**
+ * Creates headers for the request, including content type and accept headers
+ */
+function createHeaders({
+  op,
+  contentType,
+}: {
+  op: QuickMcpOperation;
+  contentType: string | null;
+}): Headers {
+  const headers = new Headers();
+
   if (contentType) {
-    (init.headers as Headers).set('Content-Type', contentType);
+    headers.set('Content-Type', contentType);
   }
 
-  (init.headers as Headers).set('Accept', op.responseType);
-
-  return { init, url };
+  headers.set('Accept', op.responseType);
+  return headers;
 }

@@ -2,7 +2,7 @@ import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import type { LogLayer } from 'loglayer';
 import { describe, expect, it } from 'vitest';
 
-import type { McpifyOperation } from '../operation/ext.ts';
+import type { QuickMcpOperation } from '../operation/ext.ts';
 import { testApp } from '../test/create-oas.ts';
 import { createTestOp } from '../test/create-test-op.ts';
 
@@ -31,7 +31,7 @@ function createTestResponse(
  */
 function setupHandlers(contentType: string): {
   app: { log: LogLayer };
-  operation: McpifyOperation;
+  operation: QuickMcpOperation;
 } {
   // Create test app with real logger
   const { app } = testApp();
@@ -163,7 +163,7 @@ describe('ResponseHandler', () => {
     ): {
       response: Response;
       app: { log: LogLayer };
-      operation: McpifyOperation;
+      operation: QuickMcpOperation;
       executeTest: () => Promise<ReadResourceResult>;
     } => {
       // Create a test app with logging

@@ -43,9 +43,9 @@ const swaggerOptions = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'MCPify Demo API',
+      title: 'Quick-MCP Demo API',
       version: '1.0.0',
-      description: 'A simple Express API to test MCPify proxy',
+      description: 'A simple Express API to test Quick-MCP proxy',
     },
     servers: [
       {
